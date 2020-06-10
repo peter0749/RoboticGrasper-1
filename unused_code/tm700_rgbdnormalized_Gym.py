@@ -436,6 +436,7 @@ if __name__ == '__main__':
 
   p.connect(p.GUI)
   #p.setAdditionalSearchPath(datapath)
-  test =tm700_rgbd_gym()
-  test.step([0, 0, 0, 0, 0, -0.25, 0.25])
+  test = tm700_rgbd_gym()
+  test.reset()
+  test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.2876258566462587, 0, -np.pi, 0, 0])
   time.sleep(50)

@@ -106,6 +106,47 @@ class tm700:
 
     return observation
 
+  def applyActionIK(self, motorCommands):
+
+    x = motorCommands[0]
+    y = motorCommands[1]
+    z = motorCommands[2]
+    roll  = motorCommands[3]
+    pitch = motorCommands[4]
+    yaw   = motorCommands[5]
+    fingerAngle = motorCommands[6]
+
+    pos = [x, y, z]
+    orn = p.getQuaternionFromEuler([roll, pitch, yaw])  # -math.pi,yaw])
+    jointPoses = p.calculateInverseKinematics(self.tm700Uid, self.tmEndEffectorIndex, pos,
+                                              orn, self.ll, self.ul, self.jr, self.rp)
+    for i in range(self.tmEndEffectorIndex):
+      p.setJointMotorControl2(bodyUniqueId=self.tm700Uid,
+                              jointIndex=i,
+                              controlMode=p.POSITION_CONTROL,
+                              targetPosition=jointPoses[i],
+                              targetVelocity=0,
+                              force=self.maxForce,
+                              maxVelocity=self.maxVelocity,
+                              positionGain=0.3,
+                              velocityGain=1)
+    state = p.getLinkState(self.tm700Uid, self.tmEndEffectorIndex) # returns 1. center of mass cartesian coordinates, 2. rotation around center of mass in quaternion
+    self.endEffectorPos  = state[0]
+    self.endEffectorQuat = state[1]
+
+    p.setJointMotorControl2(self.tm700Uid,
+                        8,
+                        p.POSITION_CONTROL,
+                        targetPosition=-fingerAngle/4.,
+                        force=self.fingerTipForce)
+
+    p.setJointMotorControl2(self.tm700Uid,
+                        9,
+                        p.POSITION_CONTROL,
+                        targetPosition=fingerAngle/4.,
+                        force=self.fingerTipForce)
+    return state
+
   def applyAction(self, motorCommands):
 
 

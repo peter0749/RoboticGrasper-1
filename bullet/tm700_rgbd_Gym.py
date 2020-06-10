@@ -24,7 +24,7 @@ N_DATA_TO_GENERATE = 5000
 N_UNSEEN_DATA_TO_GENERATE = 500
 DATA_ROOT = Path('/data/ShapeNet_subset/')
 NAME2IDX = {
-    'airplane': 1, 'car': 2, 'guitar': 3, 'laptop': 4, 'pistol': 5, 'bag': 6, 'chair': 7, 'knife': 8, 'motorbike': 9, 'rocket': 10, 
+    'airplane': 1, 'car': 2, 'guitar': 3, 'laptop': 4, 'pistol': 5, 'bag': 6, 'chair': 7, 'knife': 8, 'motorbike': 9, 'rocket': 10,
     'table': 11, 'cap': 12, 'earphone': 13, 'lamp': 14, 'mug': 15, 'skateboard': 16
 }
 
@@ -46,8 +46,8 @@ class tm700_rgbd_gym(tm700_possensor_gym):
                removeHeightHack=False,
                blockRandom=0.1,
                cameraRandom=0,
-               width=64,
-               height=64,
+               width=256,
+               height=256,
                numObjects=5,
                isTest=False):
 
@@ -60,8 +60,8 @@ class tm700_rgbd_gym(tm700_possensor_gym):
         ##############
 
         self._isDiscrete = isDiscrete
-        # self._timeStep = 1. / 240.
-        self._timeStep = 1. / 60.
+        self._timeStep = 1. / 240.
+        # self._timeStep = 1. / 60.
         self._urdfRoot = urdfRoot
         self._actionRepeat = actionRepeat
         self._isEnableSelfCollision = isEnableSelfCollision
@@ -144,7 +144,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
                     unseen_object_pool.append((obj_path, str(class_path.parts[-1])))
                 else:
                     object_pool.append((obj_path, str(class_path.parts[-1])))
-            
+
         random.seed(5)
         random.shuffle(object_pool)
         random.seed(5)
@@ -156,7 +156,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     def reset(self):
         """Environment reset called at the beginning of an episode.
         """
-        look = [0.4, 0.1, 0.54] 
+        look = [0.4, 0.1, 0.54]
         distance = 1.5
         pitch = -90
         yaw = -90
@@ -183,6 +183,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
                                 0.000000, 0.000000, 0.0, 1.0)
 
         p.setGravity(0, 0, -10)
+        self._tm700 = tm700(urdfRootPath=self._urdfRoot, timeStep=self._timeStep)
         self._envStepCounter = 0
         p.stepSimulation()
 
@@ -199,7 +200,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
                     if len(self.model_paths)==0:
                         raise Exception('There is no data left!')
                     urdfList.append(self.model_paths.pop())
-    
+
                 self._objectUids, self._objectClasses= self._randomly_place_objects(urdfList, pos_range)
                 self._observation = self._get_observation()
                 self.img_save_cnt += 1
@@ -216,7 +217,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
                     if len(self.unseen_model_paths)==0:
                         raise Exception('There is no data left!')
                     urdfList.append(self.unseen_model_paths.pop())
-    
+
                 self._objectUids, self._objectClasses= self._randomly_place_objects(urdfList, pos_range)
                 self._observation = self._get_observation(unseen=True)
                 self.img_save_cnt += 1
@@ -303,7 +304,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
 
         AABBs = np.zeros((len(self._objectUids), 2, 3))
         cls_ls = []
-        
+
         for i, (_uid, _cls) in enumerate(zip(self._objectUids, self._objectClasses)):
             AABBs[i] = np.asarray(p.getAABB(_uid)).reshape(2, 3)
             cls_ls.append(NAME2IDX[_cls])

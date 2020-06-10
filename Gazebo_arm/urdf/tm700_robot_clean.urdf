@@ -198,9 +198,9 @@
   <link name="tip_link">
     <collision>
       <geometry>
-        <box size="0.05 0.05 0.05"/>
+        <box size="0.02 0.02 0.02"/>
       </geometry>
-      <origin rpy="0 0 0" xyz="0 0 0.025"/>
+      <origin rpy="0 0 0" xyz="0 0 0.0025"/>
     </collision>
   </link>
   <joint name="tip_fixed_joint" type="fixed">
@@ -216,23 +216,23 @@
       <inertia ixx="3.27413333929741E-05" ixy="3.7314060486416E-08" ixz="3.97669066588691E-06" iyy="4.47182985231326E-05" iyz="-9.49992756213297E-09" izz="5.02142570756738E-05"/>
     </inertial>
     <visual>
-      <origin rpy="0 3.14159265 0" xyz="0 0 0"/>
+      <origin rpy="1.5707963269 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="./meshes/toyo_gripper/Gripper.STL" scale="0.01 0.01 0.01"/>
+        <mesh filename="./meshes/toyo_s68/Head.stl" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="">
         <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
       </material>
     </visual>
     <collision>
-      <origin rpy="0 3.14159265 0" xyz="0 0 0"/>
+      <origin rpy="1.5707963269 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="./meshes/toyo_gripper/Gripper.STL" scale="0.01 0.01 0.01"/>
+        <mesh filename="./meshes/toyo_s68/Head.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
   </link>
   <joint name="gripper_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="0 0 0.15"/>
+    <origin rpy="0 0 0" xyz="0 0 0.06"/>
     <parent link="wrist_3_link"/>
     <child link="gripper_link"/>
     <axis xyz="-1 0 0"/>
@@ -240,14 +240,14 @@
   </joint>
   <link name="finger_r_link">
     <inertial>
-      <origin rpy="0 0 0" xyz="0.0100191457715113 -0.00843835347348892 -0.00483280251641866"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.0121931459003602"/>
       <inertia ixx="6.74016278931418E-07" ixy="-2.36459038775023E-07" ixz="3.1480125304693E-09" iyy="3.10966297287339E-06" iyz="1.19271018871704E-10" izz="2.77935600332309E-06"/>
     </inertial>
     <visual>
       <origin rpy="0 0 3.14159265" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="./meshes/toyo_gripper/finger_r.STL" scale="0.01 0.01 0.01"/>
+        <mesh filename="./meshes/toyo_s68/Teeth.stl" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="">
         <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
@@ -256,28 +256,28 @@
     <collision>
       <origin rpy="0 0 3.14159265" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="./meshes/toyo_gripper/finger_r.STL" scale="0.01 0.01 0.01"/>
+        <mesh filename="./meshes/toyo_s68/Teeth.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
   </link>
   <!--prismatic-->
   <joint name="finger_r_joint" type="prismatic">
-    <origin rpy="0 0 0" xyz="-0.0105 0.0015 0.013"/>
+    <origin rpy="0 0 1.5707963269" xyz="-0.055 0 0.09"/>
     <parent link="gripper_link"/>
     <child link="finger_r_link"/>
-    <axis xyz="1 0 0"/>
+    <axis xyz="0 1 0"/>
     <limit effort="1" lower="-1" upper="0" velocity="1"/>
   </joint>
   <link name="finger_l_link">
     <inertial>
-      <origin rpy="0 0 0" xyz="0.0100191599590265 0.00643833435729511 -0.00483280251641866"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
       <mass value="0.0121931459003603"/>
       <inertia ixx="6.74017180959932E-07" ixy="2.3646368440071E-07" ixz="3.14801230297432E-09" iyy="3.10966207084492E-06" iyz="-1.19277023229564E-10" izz="2.77935600332313E-06"/>
     </inertial>
     <visual>
       <origin rpy="0 0 3.14159265" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="./meshes/toyo_gripper/finger_l.STL" scale="0.01 0.01 0.01"/>
+          <mesh filename="./meshes/toyo_s68/Teeth.stl" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="">
         <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
@@ -286,16 +286,16 @@
     <collision>
       <origin rpy="0 0 3.14159265" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="./meshes/toyo_gripper/finger_l.STL" scale="0.01 0.01 0.01"/>
+          <mesh filename="./meshes/toyo_s68/Teeth.stl" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
   </link>
   <!--prismatic-->
   <joint name="finger_l_joint" type="prismatic">
-    <origin rpy="0 0 0" xyz="0.0105 0.0015 0.013"/>
+    <origin rpy="0 0 -1.5707963269" xyz="0.055 0 0.09"/>
     <parent link="gripper_link"/>
     <child link="finger_l_link"/>
-    <axis xyz="1 0 0"/>
+    <axis xyz="0 -1 0"/>
     <limit effort="1" lower="0" upper="1" velocity="1"/>
   </joint>
   <!-- add crabbing 2-jaw gripper-->

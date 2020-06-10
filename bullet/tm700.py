@@ -31,16 +31,15 @@ class tm700:
     self.tmFingerIndexR = 9 # not clear whether right and left is correct
     # lower limits for null space
     # self.ll = [-.967, -2, -2.96, 0.19, -2.96, -2.09, -3.05]
-    self.ll = [-10, -10, -10, -10, -10, -10, -10]
+    self.ll = [-10, -10, -10, -10, -10, -10, -10, -10]
 
     # upper limits for null space
-    self.ul = [.967, 2, 2.96, 2.29, 2.96, 2.09, 3.05]
-    self.ul = [10, 10, 10, 10, 10, 10, 10]
+    self.ul = [10, 10, 10, 10, 10, 10, 10, 10]
     # joint ranges for null space
     # self.jr = [5.8, 4, 5.8, 4, 5.8, 4, 6]
-    self.jr = [10, 10, 10, 10, 10, 10, 10]
+    self.jr = [10, 10, 10, 10, 10, 10, 10, 10]
     # restposes for null space
-    self.rp = [0, 0, 0, 0.5 * math.pi, 0, -math.pi * 0.5 * 0.66, 0]
+    self.rp = [0, 0, 0, 0.5 * math.pi, 0, -math.pi * 0.5 * 0.66, 0, 0]
     # joint damping coefficents
     self.jd = None
     #     [
@@ -56,7 +55,7 @@ class tm700:
     p.resetBasePositionAndOrientation(self.tm700Uid, [0.0, 0.0, -0.0], # position of robot, GREEN IS Y AXIS
                                       [0.000000, 0.000000, 1.000000, 0.000000]) # direction of robot
     self.jointPositions = [
-        0.0, -0, -1.5, -0.0, -1.6, -0, -0, 1.5, -0.02,0.02] # position 6 is actually gripper joint
+        0.0, -0, -1.5, -0.0, -1.6, -0, -0, 1.5, -0.02,0.02,0] # position 6 is actually gripper joint
 
     self.numJoints = p.getNumJoints(self.tm700Uid)
     for jointIndex in range(self.numJoints):

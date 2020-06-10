@@ -184,18 +184,17 @@ class tm700_possensor_gym(gym.Env):
       realAction = [dx, dy, -0.0005, da, f]
     return self.step2(realAction)
 
-  def step_to_target_pose(self, action, max_iteration=5000, trans_eps=1e-4, rot_eps=2.2, ts=None, **kwargs):
+  def step_to_target_pose(self, action, max_iteration=5000, min_iteration=100, trans_eps=0.003, rot_eps=2.2, ts=None, **kwargs):
     for ite in range(max_iteration):
-      print(ite)
       observation, reward, done, state, info = self.step3(action, **kwargs)
+      print(ite)
       if done:
         break
       target_t = np.asarray(state[0])
       target_r = np.asarray(state[1])
       trans_d =   np.linalg.norm(target_t-action[:3], ord=2)
       rot_d = min(np.linalg.norm(target_r-action[3:], ord=2), np.linalg.norm(target_r+action[3:], ord=2))
-      print(trans_d, rot_d)
-      if trans_d<trans_eps and rot_d<rot_eps:
+      if trans_d<trans_eps and rot_d<rot_eps and ite>=min_iteration:
         break
       if not ts is None and ts>0:
           time.sleep(ts)
@@ -355,4 +354,5 @@ if __name__ == '__main__':
   p.stepSimulation()
   while True:
       test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.30, 0, -np.pi, 0, 0], ts=1/240., return_camera=False)
+      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.30, 0, -np.pi, 0, 0.6], ts=1/10., return_camera=True)
 

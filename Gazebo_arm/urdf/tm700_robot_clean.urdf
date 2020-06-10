@@ -298,6 +298,13 @@
     <axis xyz="0 -1 0"/>
     <limit effort="1" lower="0" upper="1" velocity="1"/>
   </joint>
+  <joint name="gripper_b_joint" type="fixed">
+    <origin rpy="-1.5707963269 -1.5707963269 0" xyz="0 0 0.09"/>
+    <parent link="gripper_link"/>
+    <child link="gripper_b_link"/>
+  </joint>
+  <link name="gripper_b_link">
+  </link>
   <!-- add crabbing 2-jaw gripper-->
   <!--    <property name="gripper_length" value="0.1" />-->
   <!--    <property name="gripper_height" value="0.1" />-->

@@ -113,17 +113,19 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     """Environment reset called at the beginning of an episode.
     """
     # Set the camera settings.
-    look = [0.1, -0.3, 0.54] #[0.4317558029454219, 0.1470448842904527, 0.2876218894185256]#[0.23, 0.2, 0.54] # from where the input is
-    distance = 0.5
-    pitch = -45 + self._cameraRandom * np.random.uniform(-3, 3)
-    yaw = -45 + self._cameraRandom * np.random.uniform(-3, 3)
+    look = [0.80, -0.30, 0.45]
+    distance = 0.15
+    pitch = -45
+    yaw = 45 # -45
     roll = 180
     self._view_matrix = p.computeViewMatrixFromYawPitchRoll(look, distance, yaw, pitch, roll, 2)
-    fov = 20. + self._cameraRandom * np.random.uniform(-2, 2)
+    self.fov = 40.
+    self.focal_length_x = self._width / np.tan(np.radians(self.fov)/2.0)
+    self.focal_length_y = self._height / np.tan(np.radians(self.fov)/2.0)
     aspect = self._width / self._height
-    near = 0.01
-    far = 10
-    self._proj_matrix = p.computeProjectionMatrixFOV(fov, aspect, near, far)
+    self.d_near = 0.01
+    self.d_far = 1.5
+    self._proj_matrix = p.computeProjectionMatrixFOV(self.fov, aspect, self.d_near, self.d_far)
 
     self._attempted_grasp = False
     self._env_step = 0
@@ -438,16 +440,16 @@ if __name__ == '__main__':
 
   p.connect(p.GUI)
   #p.setAdditionalSearchPath(datapath)
-  test = tm700_rgbd_gym(width=640, height=480)
+  test = tm700_rgbd_gym(width=480, height=480, numObjects=3)
+  first = True
   while True:
       test.reset()
       #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0], ts=1/240.)
       #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0.12], ts=1/60.)
       print("Done")
-      point_cloud, depth, segmentation, view_matrix, proj_matrix = test.getTargetGraspObservation()
-      print(view_matrix, proj_matrix)
-      print(depth.min(), depth.max())
-      cv2.imwrite('test.png', depth)
-      pc = pcl.PointCloud(point_cloud.reshape(-1,3).astype(np.float32))
-      pc.to_file('test.pcd'.encode())
-      break
+      if first:
+          point_cloud, segmentation = test.getTargetGraspObservation()
+          pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
+          pc = pcl.PointCloud(pc_flatten)
+          pc.to_file('test.pcd'.encode())
+          first = False

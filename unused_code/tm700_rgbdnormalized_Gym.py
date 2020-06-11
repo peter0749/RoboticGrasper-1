@@ -439,6 +439,6 @@ if __name__ == '__main__':
   test = tm700_rgbd_gym()
   while True:
       test.reset()
-      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.2876258566462587, 0, -np.pi, 0, 0], ts=1/240., eps=1e-3, return_camera=False)
-      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.2876258566462587, 0, -np.pi, 0, 0.4], ts=1/60., eps=1e-3, return_camera=False)
+      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.2876258566462587, 0, -np.pi, 0, 0], ts=1/240.)
+      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.2876258566462587, 0, -np.pi, 0, 0.4], ts=1/60.)
       print("Done")

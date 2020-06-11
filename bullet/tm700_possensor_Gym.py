@@ -83,10 +83,10 @@ class tm700_possensor_gym(gym.Env):
     roll = 180
     pos_range = [0.45, 0.5, 0.0, 0.1]
     self._view_matrix = p.computeViewMatrixFromYawPitchRoll(look, distance, yaw, pitch, roll, 2)
-    fov = 20.
+    fov = 60.
     aspect = self._width / self._height
-    near = 0.01
-    far = 10
+    near = 0.05
+    far = 0.50
     self._proj_matrix = p.computeProjectionMatrixFOV(fov, aspect, near, far)
 
     self.terminated = 0
@@ -119,6 +119,29 @@ class tm700_possensor_gym(gym.Env):
     self.np_random, seed = seeding.np_random(seed)
     return [seed]
 
+  def get_xyz(self,depth, intrinsic, extrinsic):
+    '''
+    ---
+    rpts: ndarray (H, W, 3) -- x, y, z
+    '''
+    depth = np.squeeze(depth)
+    assert len(depth.shape)==2
+    intrinsic_inv = np.linalg.pinv(intrinsic) # (3,3)
+    extrinsic_inv = np.linalg.pinv(extrinsic)
+    depth = depth / 1e3
+    y = np.arange(0, depth.shape[0])
+    x = np.arange(0, depth.shape[1])
+    xv, yv = np.meshgrid(x, y)
+    xy = np.append(xv[np.newaxis], yv[np.newaxis], axis=0) # (2, H, W) -- xy
+    xy_homogeneous = np.pad(xy, ((0,1),(0,0),(0,0)), mode='constant', constant_values=1) # (3, H, W) -- x, y, 1
+    xy_h_flat = xy_homogeneous.reshape(3, -1) # (3, H*W) -- x, y, 1
+    xy_h_flat_t = np.dot(intrinsic_inv, xy_h_flat) * depth.reshape(1, -1) # (3,3) x (3, H*W) -> (3, H*W)
+    xy_h_flat_t_h = np.pad(xy_h_flat_t, ((0,1),(0,0)), mode='constant', constant_values=1) # (3, H*W) -> (4, H*W)
+    xy_h_flat_w = np.dot(extrinsic_inv, xy_h_flat_t_h) # (4, 4) x (4, H*W) -> (4, H*W)
+    xyz = xy_h_flat_w[:3,:].reshape(3, depth.shape[0], depth.shape[1]) # (3, H, W)
+    xyz = np.transpose(xyz, (1,2,0)) # (H, W, 3)
+    return xyz
+
   def getTargetGraspObservation(self, return_camera=True, **kwargs):
     if return_camera:
         img_arr = p.getCameraImage(width=self._width,
@@ -129,7 +152,16 @@ class tm700_possensor_gym(gym.Env):
         segmentation = img_arr[4]
         depth = np.reshape(depth, (self._height, self._width, 1) )
         segmentation = np.reshape(segmentation, (self._height, self._width, 1) )
-        return depth, segmentation, self._view_matrix, self._proj_matrix
+        proj_matrix = np.zeros((3,3), dtype=np.float32)
+        proj_matrix[0,0] = self._proj_matrix[0]
+        proj_matrix[1,1] = self._proj_matrix[5]
+        proj_matrix[2,2] = 1.0
+        # proj_matrix: intrinsic matrix 3x3 (u, v, 1)
+        # view_matrix: extrinsic matrix 4x4 (x, y, z, 1)
+        view_matrix = np.asarray(self._view_matrix).reshape(4,4).T
+        point_cloud = self.get_xyz(depth, proj_matrix, view_matrix)
+
+        return point_cloud, depth, segmentation, view_matrix, proj_matrix
     else:
         return self._view_matrix, self._proj_matrix
 
@@ -184,10 +216,9 @@ class tm700_possensor_gym(gym.Env):
       realAction = [dx, dy, -0.0005, da, f]
     return self.step2(realAction)
 
-  def step_to_target_pose(self, action, max_iteration=5000, min_iteration=100, trans_eps=0.003, rot_eps=2.2, ts=None, **kwargs):
+  def step_to_target_pose(self, action, max_iteration=5000, min_iteration=100, trans_eps=0.005, rot_eps=2.2, ts=None):
     for ite in range(max_iteration):
-      observation, reward, done, state, info = self.step3(action, **kwargs)
-      print(ite)
+      reward, done, state, info = self.step3(action)
       if done:
         break
       target_t = np.asarray(state[0])
@@ -198,18 +229,17 @@ class tm700_possensor_gym(gym.Env):
         break
       if not ts is None and ts>0:
           time.sleep(ts)
-    return observation, reward, done, state, info
+    return reward, done, state, info
 
-  def step3(self, action, **kwargs):
+  def step3(self, action):
     state = self._tm700.applyActionIK(action)
     p.stepSimulation()
     self._envStepCounter += 1
     if self._renders:
       time.sleep(self._timeStep)
-    self._observation = self.getTargetGraspObservation(**kwargs)
     done = self._termination()
     reward = self._reward()
-    return self._observation, reward, done, state, {}
+    return reward, done, state, {}
 
   def step2(self, action):
     for i in range(self._actionRepeat):
@@ -353,6 +383,6 @@ if __name__ == '__main__':
   test.reset()
   p.stepSimulation()
   while True:
-      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.30, 0, -np.pi, 0, 0], ts=1/240., return_camera=False)
-      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.30, 0, -np.pi, 0, 0.6], ts=1/10., return_camera=True)
+      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.30, 0, -np.pi, 0, 0], ts=1/240.)
+      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.30, 0, -np.pi, 0, 0.6], ts=1/10.)
 

@@ -433,12 +433,20 @@ class tm700_rgbd_gym(tm700_possensor_gym):
 
 
 if __name__ == '__main__':
+  import pcl
+  import cv2
 
   p.connect(p.GUI)
   #p.setAdditionalSearchPath(datapath)
-  test = tm700_rgbd_gym()
+  test = tm700_rgbd_gym(width=640, height=480)
   while True:
       test.reset()
-      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.2876258566462587, 0, -np.pi, 0, 0], ts=1/240., eps=1e-3, return_camera=False)
-      test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.2876258566462587, 0, -np.pi, 0, 0.4], ts=1/60., eps=1e-3, return_camera=False)
+      #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0], ts=1/240.)
+      #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0.12], ts=1/60.)
       print("Done")
+      point_cloud, depth, segmentation, view_matrix, proj_matrix = test.getTargetGraspObservation()
+      print(depth.min(), depth.max())
+      cv2.imwrite('test.png', depth)
+      pc = pcl.PointCloud(point_cloud.reshape(-1,3).astype(np.float32))
+      pc.to_file('test.ply'.encode())
+      break

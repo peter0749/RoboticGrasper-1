@@ -26,6 +26,7 @@ class tm700:
     self.useNullSpace = 1
     self.useOrientation = 0
     self.tmEndEffectorIndex = 6
+    self.tmGripperBottomCenterIndex = 10
     self.tmGripperIndex = 6
     self.tmFingerIndexL = 8
     self.tmFingerIndexR = 9 # not clear whether right and left is correct
@@ -117,7 +118,7 @@ class tm700:
 
     pos = [x, y, z]
     orn = p.getQuaternionFromEuler([roll, pitch, yaw])  # -math.pi,yaw])
-    jointPoses = p.calculateInverseKinematics(self.tm700Uid, self.tmEndEffectorIndex, pos,
+    jointPoses = p.calculateInverseKinematics(self.tm700Uid, self.tmGripperBottomCenterIndex, pos,
                                               orn, self.ll, self.ul, self.jr, self.rp)
     for i in range(self.tmEndEffectorIndex):
       p.setJointMotorControl2(bodyUniqueId=self.tm700Uid,
@@ -132,6 +133,9 @@ class tm700:
     state = p.getLinkState(self.tm700Uid, self.tmEndEffectorIndex) # returns 1. center of mass cartesian coordinates, 2. rotation around center of mass in quaternion
     self.endEffectorPos  = state[0]
     self.endEffectorQuat = state[1]
+    state = p.getLinkState(self.tm700Uid, self.tmGripperBottomCenterIndex) # returns 1. center of mass cartesian coordinates, 2. rotation around center of mass in quaternion
+    self.endGripperBottomPos  = state[0]
+    self.endGripperBottomQuat = state[1]
 
     p.setJointMotorControl2(self.tm700Uid,
                         8,

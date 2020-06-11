@@ -136,8 +136,8 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     p.setTimeStep(self._timeStep)
     p.loadURDF(os.path.join(self._urdfRoot, "plane.urdf"), [0, 0, -1])
 
-    self.tableUid = p.loadURDF(os.path.join(self._urdfRoot, "table/table.urdf"), 0.5000000, 0.00000, -.640000,
-                               0.000000, 0.000000, 0.0, 1.0)
+    self.table_pose = [0.5000000, 0.00000, -.640000, 0.000000, 0.000000, 0.0, 1.0]
+    self.tableUid = p.loadURDF(os.path.join(self._urdfRoot, "table/table.urdf"), *self.table_pose)
 
     p.setGravity(0, 0, -10)
     self._tm700 = tm700(urdfRootPath=self._urdfRoot, timeStep=self._timeStep)
@@ -335,6 +335,14 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     debug = {'grasp_success': self._graspSuccess}
     return observation, reward, done, debug
 
+  def check_if_grasp_success(self):
+    for uid in self._objectUids:
+      blockPos, blockOrn = p.getBasePositionAndOrientation(uid)
+      if blockPos[2]>0.20:
+          return True
+    return False
+
+
   def _reward(self):
 
     self.blockUid = self._objectUids[0]
@@ -440,16 +448,25 @@ if __name__ == '__main__':
 
   p.connect(p.GUI)
   #p.setAdditionalSearchPath(datapath)
-  test = tm700_rgbd_gym(width=480, height=480, numObjects=3)
-  first = True
+  start_obj_id = 3
+  ts = 1/240.
+  test = tm700_rgbd_gym(width=480, height=480, numObjects=1)
   while True:
       test.reset()
-      #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0], ts=1/240.)
-      #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0.12], ts=1/60.)
-      print("Done")
-      if first:
-          point_cloud, segmentation = test.getTargetGraspObservation()
-          pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
-          pc = pcl.PointCloud(pc_flatten)
-          pc.to_file('test.pcd'.encode())
-          first = False
+      point_cloud, segmentation = test.getTargetGraspObservation()
+      unique_object_id = list(filter(lambda x: x >= start_obj_id, np.unique(segmentation)))
+      print(unique_object_id)
+      pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
+      # Naive baseline for testing
+      for obj_id in unique_object_id:
+        random_pos = np.median(pc_flatten[segmentation.reshape(-1)==obj_id,:] + np.array([[0, 0, 0.125]]), axis=0)
+        test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.0],   ts=ts, max_iteration=1000)
+        test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=500)
+        up_ops = random_pos + np.array([0, 0, 0.23])
+        test.step_to_target_pose([*up_ops, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=1000)
+        if test._graspSuccess:
+            print("Grasp success!")
+        else:
+            print("Grasp failed!")
+
+

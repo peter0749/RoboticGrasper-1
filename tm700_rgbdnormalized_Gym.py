@@ -24,6 +24,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
 
   def __init__(self,
                urdfRoot=pybullet_data.getDataPath(),
+               objRoot='',
                actionRepeat=80,
                isEnableSelfCollision=True,
                renders=False,
@@ -65,6 +66,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     self._isDiscrete = isDiscrete
     self._timeStep = 1. / 240.
     self._urdfRoot = urdfRoot
+    self._objRoot = objRoot
     self._actionRepeat = actionRepeat
     self._isEnableSelfCollision = isEnableSelfCollision
     self._observation = []
@@ -146,7 +148,8 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     p.stepSimulation()
 
     # Choose the objects in the bin.
-    urdfList = self._get_random_object(self._numObjects, self._isTest)
+    # urdfList = self._get_random_object(self._numObjects, self._isTest)
+    urdfList = self._get_random_urdf(self._numObjects)
     # urdfList = self._get_block()
     self._objectUids = self._randomly_place_objects(urdfList)
     self._observation = self._get_observation()
@@ -165,12 +168,10 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     # Randomize positions of each object urdf.
     objectUids = []
     for urdf_name in urdfList:
-      xpos = 0.4 + self._blockRandom * random.random()
+      xpos = 0.5 + self._blockRandom * random.random()
       ypos = self._blockRandom * (random.random() - .5)
-      angle = np.pi  #+ self._blockRandom * np.pi #* random.random()
-      orn = p.getQuaternionFromEuler([0, 0, angle])
-      urdf_path = os.path.join(self._urdfRoot, urdf_name)
-      uid = p.loadURDF(urdf_path, [xpos, ypos, .15], [orn[0], orn[1], orn[2], orn[3]])
+      orn = p.getQuaternionFromEuler([0, 0, np.random.uniform(-np.pi, np.pi)])
+      uid = p.loadURDF(urdf_name, [xpos, ypos, -0.012], [orn[0], orn[1], orn[2], orn[3]])
       objectUids.append(uid)
       # Let each object fall to the tray individual, to prevent object
       # intersection.
@@ -410,6 +411,25 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     """
     return self._attempted_grasp or self._env_step >= self._maxSteps
 
+  def _get_random_urdf(self, num_objects):
+    """Randomly choose an object urdf from the random_urdfs directory.
+
+    Args:
+      num_objects:
+        Number of graspable objects.
+
+    Returns:
+      A list of urdf filenames.
+    """
+    urdf_pattern = self._objRoot + '/**/*.urdf'
+    found_object_directories = glob.glob(urdf_pattern, recursive=True)
+    total_num_objects = len(found_object_directories)
+    selected_objects = np.random.choice(np.arange(total_num_objects), num_objects, replace=num_objects>total_num_objects)
+    selected_objects_filenames = []
+    for object_index in selected_objects:
+      selected_objects_filenames += [found_object_directories[object_index]]
+    return selected_objects_filenames
+
   def _get_random_object(self, num_objects, test):
     """Randomly choose an object urdf from the random_urdfs directory.
 
@@ -426,7 +446,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
       urdf_pattern = os.path.join(self._urdfRoot, 'random_urdfs/*[1-9]/*.urdf')
     found_object_directories = glob.glob(urdf_pattern)
     total_num_objects = len(found_object_directories)
-    selected_objects = np.random.choice(np.arange(total_num_objects), num_objects)
+    selected_objects = np.random.choice(np.arange(total_num_objects), num_objects, replace=num_objects>total_num_objects)
     selected_objects_filenames = []
     for object_index in selected_objects:
       selected_objects_filenames += [found_object_directories[object_index]]
@@ -450,23 +470,20 @@ if __name__ == '__main__':
   #p.setAdditionalSearchPath(datapath)
   start_obj_id = 3
   ts = 1/240.
-  test = tm700_rgbd_gym(width=480, height=480, numObjects=1)
+  test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
   while True:
       test.reset()
-      point_cloud, segmentation = test.getTargetGraspObservation()
-      unique_object_id = list(filter(lambda x: x >= start_obj_id, np.unique(segmentation)))
-      print(unique_object_id)
-      pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
       # Naive baseline for testing
-      for obj_id in unique_object_id:
-        random_pos = np.median(pc_flatten[segmentation.reshape(-1)==obj_id,:] + np.array([[0, 0, 0.125]]), axis=0)
-        test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.0],   ts=ts, max_iteration=1000)
-        test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=500)
-        up_ops = random_pos + np.array([0, 0, 0.23])
-        test.step_to_target_pose([*up_ops, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=1000)
-        if test._graspSuccess:
-            print("Grasp success!")
-        else:
-            print("Grasp failed!")
+      point_cloud, segmentation = test.getTargetGraspObservation()
+      pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
+      random_pos = np.median(pc_flatten[segmentation.reshape(-1)==start_obj_id,:] + np.array([[0, 0, 0.125]]), axis=0)
+      test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.0],  ts=ts, max_iteration=1000)
+      test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=500)
+      up_ops = random_pos + np.array([0, 0, 0.23])
+      test.step_to_target_pose([*up_ops, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=1000)
+      if test._graspSuccess:
+          print("Grasp success!")
+      else:
+          print("Grasp failed!")
 
 

@@ -56,7 +56,7 @@ class tm700:
     p.resetBasePositionAndOrientation(self.tm700Uid, [0.0, 0.0, -0.0], # position of robot, GREEN IS Y AXIS
                                       [0.000000, 0.000000, 1.000000, 0.000000]) # direction of robot
     self.jointPositions = [
-        0.0, -0, -1.5, -0.0, -1.6, -0, -0, 1.5, -0.02,0.02,0] # position 6 is actually gripper joint
+        0.0, -0, -1.2, -0.0, -1.6, -0, -0, 1.5, -0.02,0.02,0] # position 6 is actually gripper joint
 
     self.numJoints = p.getNumJoints(self.tm700Uid)
     for jointIndex in range(self.numJoints):

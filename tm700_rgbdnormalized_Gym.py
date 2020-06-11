@@ -445,8 +445,9 @@ if __name__ == '__main__':
       #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0.12], ts=1/60.)
       print("Done")
       point_cloud, depth, segmentation, view_matrix, proj_matrix = test.getTargetGraspObservation()
+      print(view_matrix, proj_matrix)
       print(depth.min(), depth.max())
       cv2.imwrite('test.png', depth)
       pc = pcl.PointCloud(point_cloud.reshape(-1,3).astype(np.float32))
-      pc.to_file('test.ply'.encode())
+      pc.to_file('test.pcd'.encode())
       break

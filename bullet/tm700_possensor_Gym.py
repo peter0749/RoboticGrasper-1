@@ -77,9 +77,9 @@ class tm700_possensor_gym(gym.Env):
   def reset(self):
 
     look = [0.4, 0.1, 0.54]
-    distance = 1.5
-    pitch = -90
-    yaw = -90
+    distance = 1.3
+    pitch = -41
+    yaw = -41
     roll = 180
     pos_range = [0.45, 0.5, 0.0, 0.1]
     self._view_matrix = p.computeViewMatrixFromYawPitchRoll(look, distance, yaw, pitch, roll, 2)
@@ -153,10 +153,10 @@ class tm700_possensor_gym(gym.Env):
         depth = np.reshape(depth, (self._height, self._width, 1) )
         segmentation = np.reshape(segmentation, (self._height, self._width, 1) )
         proj_matrix = np.zeros((3,3), dtype=np.float32)
-        proj_matrix[0,0] = self._proj_matrix[0]
-        proj_matrix[1,1] = self._proj_matrix[5]
+        proj_matrix[0,0] = self._proj_matrix[0] / 1e3
+        proj_matrix[1,1] = self._proj_matrix[5] / 1e3
         proj_matrix[2,2] = 1.0
-        # proj_matrix: intrinsic matrix 3x3 (u, v, 1)
+        # proj_matrix: intrinsic matrix 3x3 (u, v, 1) in meter
         # view_matrix: extrinsic matrix 4x4 (x, y, z, 1)
         view_matrix = np.asarray(self._view_matrix).reshape(4,4).T
         point_cloud = self.get_xyz(depth, proj_matrix, view_matrix)

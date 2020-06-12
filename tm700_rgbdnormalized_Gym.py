@@ -141,7 +141,8 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     self.table_pose = [0.5000000, 0.00000, -.640000, 0.000000, 0.000000, 0.0, 1.0]
     self.tableUid = p.loadURDF(os.path.join(self._urdfRoot, "table/table.urdf"), *self.table_pose)
 
-    p.setGravity(0, 0, -10)
+    #p.setGravity(0, 0, -10)
+    p.setGravity(0, 0, 0)
     self._tm700 = tm700(urdfRootPath=self._urdfRoot, timeStep=self._timeStep)
 
     self._envStepCounter = 0
@@ -171,7 +172,8 @@ class tm700_rgbd_gym(tm700_possensor_gym):
       xpos = 0.5 + self._blockRandom * random.random()
       ypos = self._blockRandom * (random.random() - .5)
       orn = p.getQuaternionFromEuler([0, 0, np.random.uniform(-np.pi/2.0, np.pi/2.0)])
-      uid = p.loadURDF(urdf_name, [xpos, ypos, -0.012], [orn[0], orn[1], orn[2], orn[3]])
+      #uid = p.loadURDF(urdf_name, [xpos, ypos, -0.012], [orn[0], orn[1], orn[2], orn[3]])
+      uid = p.loadURDF(urdf_name, [xpos, ypos, 0.15], [orn[0], orn[1], orn[2], orn[3]])
       objectUids.append(uid)
       # Let each object fall to the tray individual, to prevent object
       # intersection.
@@ -502,16 +504,27 @@ if __name__ == '__main__':
           # Naive baseline for testing
           point_cloud, segmentation = test.getTargetGraspObservation()
           pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
+          '''
+          random_pos = np.mean(pc_flatten[segmentation.reshape(-1)==start_obj_id,:] + np.array([[0, 0, 0.12]]), axis=0)
+          test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.0],   ts=ts, max_iteration=1000)
+          test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=500)
+          up_ops = random_pos + np.array([0, 0, 0.23])
+          test.step_to_target_pose([*up_ops, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=1000)
+          continue
+          '''
           if first:
-              first = False
               pc = pcl.PointCloud(pc_flatten)
               pc.to_file(b'test.pcd')
           pc_npy = pc_flatten[segmentation.reshape(-1)==start_obj_id,:] # (N, 3)
-          if pc_npy.shape[0]<config['subsample_levels'][0]:
-              pc_npy = np.append(pc_npy, pc_npy[np.random.choice(len(pc_npy), config['subsample_levels'][0]-len(pc_npy), replace=True)], axis=0)
+          if pc_npy.shape[0]<2048:
+              pc_npy = np.append(pc_npy, pc_npy[np.random.choice(len(pc_npy), 2048-len(pc_npy), replace=True)], axis=0)
           trans_to_frame = (np.max(pc_npy, axis=0) + np.min(pc_npy, axis=0)) / 2.0
-          trans_to_frame[2] = 0.0
+          trans_to_frame[2] = np.min(pc_npy[:,2])
           pc_npy -= trans_to_frame
+          if first:
+              pc = pcl.PointCloud(pc_npy)
+              pc.to_file(b'test_local.pcd')
+          first = False
           pc_npy = pc_npy[np.newaxis] # (1, N, 3)
           pc_batch, indices, reverse_lookup_index, _ = subsampling_util([(pc_npy[0],None),])
           pred = model(pc_batch.cuda(), [pt_idx.cuda() for pt_idx in indices]).cpu().numpy()
@@ -525,6 +538,7 @@ if __name__ == '__main__':
               trans    = pose[1][:3, 3]
               approach = rotation[:3,0]
               trans_backward = trans - approach*deepen_hand
+              trans_backward = trans
               new_pred_poses.append((score, np.append(rotation, trans_backward[...,np.newaxis], axis=1)))
           pred_poses = representation.filter_out_invalid_grasp_batch(pc_flatten[np.newaxis], [new_pred_poses])[0]
           best_grasp = pred_poses[0][1] # (3, 4)

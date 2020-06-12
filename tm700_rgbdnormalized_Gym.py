@@ -15,6 +15,7 @@ from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
+from mayavi import mlab
 
 
 class tm700_rgbd_gym(tm700_possensor_gym):
@@ -115,7 +116,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     """Environment reset called at the beginning of an episode.
     """
     # Set the camera settings.
-    look = [0.80, -0.30, 0.45]
+    look = [0.85, -0.30, 0.45]
     distance = 0.15
     pitch = -45
     yaw = 45 # -45
@@ -169,15 +170,15 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     # Randomize positions of each object urdf.
     objectUids = []
     for urdf_name in urdfList:
-      xpos = 0.5 + self._blockRandom * random.random()
+      xpos = 0.6 + self._blockRandom * random.random()
       ypos = self._blockRandom * (random.random() - .5)
       orn = p.getQuaternionFromEuler([0, 0, np.random.uniform(-np.pi/2.0, np.pi/2.0)])
       #uid = p.loadURDF(urdf_name, [xpos, ypos, -0.012], [orn[0], orn[1], orn[2], orn[3]])
-      uid = p.loadURDF(urdf_name, [xpos, ypos, 0.15], [orn[0], orn[1], orn[2], orn[3]])
+      uid = p.loadURDF(urdf_name, [xpos, ypos, 0.001], [orn[0], orn[1], orn[2], orn[3]])
       objectUids.append(uid)
       # Let each object fall to the tray individual, to prevent object
       # intersection.
-      for _ in range(500):
+      for _ in range(1000):
         p.stepSimulation()
     return objectUids
 
@@ -478,7 +479,7 @@ if __name__ == '__main__':
       config = json.load(fp)
 
   gripper_length = config['hand_height']
-  deepen_hand = 0.10
+  deepen_hand = gripper_length * 1.5
   model = EdgeDet(config, activation_layer=EulerActivation())
   model = model.cuda()
   model = model.eval()
@@ -489,13 +490,10 @@ if __name__ == '__main__':
   p.connect(p.GUI)
   #p.setAdditionalSearchPath(datapath)
   start_obj_id = 3
+  input_points = 2048
   ts = 1/240.
   #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
   test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
-  #test.reset()
-  #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0], ts=1/240.)
-  #time.sleep(3)
-  #exit(0)
 
   first = True
   with torch.no_grad():
@@ -504,20 +502,15 @@ if __name__ == '__main__':
           # Naive baseline for testing
           point_cloud, segmentation = test.getTargetGraspObservation()
           pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
-          '''
-          random_pos = np.mean(pc_flatten[segmentation.reshape(-1)==start_obj_id,:] + np.array([[0, 0, 0.12]]), axis=0)
-          test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.0],   ts=ts, max_iteration=1000)
-          test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=500)
-          up_ops = random_pos + np.array([0, 0, 0.23])
-          test.step_to_target_pose([*up_ops, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=1000)
-          continue
-          '''
+          pc_no_arm = pc_flatten[segmentation.reshape(-1)>0,:] # (N, 3)
           if first:
-              pc = pcl.PointCloud(pc_flatten)
+              pc = pcl.PointCloud(pc_no_arm)
               pc.to_file(b'test.pcd')
           pc_npy = pc_flatten[segmentation.reshape(-1)==start_obj_id,:] # (N, 3)
-          if pc_npy.shape[0]<2048:
-              pc_npy = np.append(pc_npy, pc_npy[np.random.choice(len(pc_npy), 2048-len(pc_npy), replace=True)], axis=0)
+          if pc_npy.shape[0]<input_points:
+              pc_npy = np.append(pc_npy, pc_npy[np.random.choice(len(pc_npy), input_points-len(pc_npy), replace=True)], axis=0)
+          if pc_npy.shape[0]>input_points:
+              pc_npy = pc_npy[np.random.choice(len(pc_npy), input_points, replace=False)]
           trans_to_frame = (np.max(pc_npy, axis=0) + np.min(pc_npy, axis=0)) / 2.0
           trans_to_frame[2] = np.min(pc_npy[:,2])
           pc_npy -= trans_to_frame
@@ -525,36 +518,67 @@ if __name__ == '__main__':
               pc = pcl.PointCloud(pc_npy)
               pc.to_file(b'test_local.pcd')
           first = False
-          pc_npy = pc_npy[np.newaxis] # (1, N, 3)
-          pc_batch, indices, reverse_lookup_index, _ = subsampling_util([(pc_npy[0],None),])
+          pc_batch, indices, reverse_lookup_index, _ = subsampling_util([(pc_npy,None),])
           pred = model(pc_batch.cuda(), [pt_idx.cuda() for pt_idx in indices]).cpu().numpy()
-          pred_poses = representation.retrive_from_feature_volume_batch(pc_npy, reverse_lookup_index, pred, n_output=1000, threshold=-1e8, nms=False)[0]
-          pred_poses = [(x[0], np.append(x[1][:3,:3], x[1][:3,3:4]+trans_to_frame[...,np.newaxis], axis=1)) for x in pred_poses]
-          pred_poses = representation.filter_out_invalid_grasp_batch(pc_flatten[np.newaxis], [pred_poses])[0]
+          pred_poses = representation.retrive_from_feature_volume_batch(pc_npy[np.newaxis]+trans_to_frame[np.newaxis], reverse_lookup_index, pred, n_output=500, threshold=-np.inf, nms=False)[0]
+          pred_poses = representation.filter_out_invalid_grasp_batch(pc_no_arm[np.newaxis], [pred_poses])[0]
+          print('Generated1 %d grasps'%len(pred_poses))
           new_pred_poses = []
           for pose in pred_poses:
               score    = pose[0]
               rotation = pose[1][:3,:3]
               trans    = pose[1][:3, 3]
               approach = rotation[:3,0]
-              trans_backward = trans - approach*deepen_hand
-              trans_backward = trans
-              new_pred_poses.append((score, np.append(rotation, trans_backward[...,np.newaxis], axis=1)))
-          pred_poses = representation.filter_out_invalid_grasp_batch(pc_flatten[np.newaxis], [new_pred_poses])[0]
+              # if there is no suitable IK solution can be found. found next
+              if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(60):
+                  continue
+              if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(75):
+                  continue
+              while True: # check if gripper collide with table
+                  tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
+                  gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], tmp_pose, config['thickness_side'])
+                  gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
+                  if gripper_l_t[2]>0.001 and gripper_r_t[2]>0.001:
+                      break
+                  trans = trans - approach * 0.001
+              trans_backward = trans - approach * deepen_hand
+              new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
+              new_pred_poses.append((score, new_pose))
+          pred_poses = new_pred_poses
+          print('Generated2 %d grasps'%len(pred_poses))
+          mlab.clf()
+          pc_subset = np.copy(pc_no_arm)
+          if len(pc_subset)>5000:
+              pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
+          mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
+          for n, pose_ in enumerate(pred_poses):
+              pose = np.copy(pose_[1])
+              pose[:,3] += pose[:,0] * deepen_hand
+              gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'])
+              gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
+
+              mlab.plot3d([gripper_l[0], gripper_r[0]], [gripper_l[1], gripper_r[1]], [gripper_l[2], gripper_r[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)
+              mlab.plot3d([gripper_l[0], gripper_l_t[0]], [gripper_l[1], gripper_l_t[1]], [gripper_l[2], gripper_l_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)
+              mlab.plot3d([gripper_r[0], gripper_r_t[0]], [gripper_r[1], gripper_r_t[1]], [gripper_r[2], gripper_r_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)
+          mlab.show()
+          input()
+          if len(pred_poses)==0:
+              print("No suitable grasp found.")
+              continue
           best_grasp = pred_poses[0][1] # (3, 4)
-          rpy = Rotation.from_matrix(best_grasp[:3,:3]).as_euler('xyz')
+          rotation = best_grasp[:3,:3]
           trans_backward = best_grasp[:,3]
-          print(best_grasp[:3,0])
-          trans = trans_backward + best_grasp[:3,0]*deepen_hand
-          test.step_to_target_pose([*trans_backward, *rpy, 0.0],  ts=ts, max_iteration=1000)
-          time.sleep(10)
-          test.step_to_target_pose([*trans, *rpy, 0.0],  ts=ts, max_iteration=1000)
-          test.step_to_target_pose([*trans, *rpy, 0.2],  ts=ts, max_iteration=500)
-          up_ops = trans + np.array([0, 0, 0.23])
-          test.step_to_target_pose([*up_ops,*rpy, 0.2],  ts=ts, max_iteration=1000)
+          approach = best_grasp[:3,0]
+          trans = trans_backward + approach*deepen_hand
+          pose = np.append(rotation, trans[...,np.newaxis], axis=1)
+          pose_backward = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
+          test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=1000)
+          test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=500)
+          test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=500)
+          pose[:3,3] += np.array([0, 0, 0.2])
+          test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=500)
           if test._graspSuccess:
               print("Grasp success!")
           else:
               print("Grasp failed!")
-
 

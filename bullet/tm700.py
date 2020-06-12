@@ -10,6 +10,7 @@ import numpy as np
 import copy
 import math
 import random
+from scipy.spatial.transform import Rotation as sciRotation
 
 class tm700:
 
@@ -18,7 +19,7 @@ class tm700:
     self.timeStep = timeStep
     self.maxVelocity = .35
     self.maxForce = 200.
-    self.fingerTipForce = 5.
+    self.fingerTipForce = 40.
     self.useInverseKinematics = 1
     self.useSimulation = 1
     self.useNullSpace = 1
@@ -107,16 +108,9 @@ class tm700:
 
   def applyActionIK(self, motorCommands):
 
-    x = motorCommands[0]
-    y = motorCommands[1]
-    z = motorCommands[2]
-    roll  = motorCommands[3]
-    pitch = motorCommands[4]
-    yaw   = motorCommands[5]
-    fingerAngle = motorCommands[6]
-
-    pos = [x, y, z]
-    orn = p.getQuaternionFromEuler([roll, pitch, yaw])  # -math.pi,yaw])
+    pos = motorCommands[0][:3,3]
+    orn = sciRotation.from_matrix(motorCommands[0][:3,:3]).as_quat()
+    fingerAngle = motorCommands[1]
     jointPoses = p.calculateInverseKinematics(self.tm700Uid, self.tmGripperBottomCenterIndex, pos,
                                               orn, self.ll, self.ul, self.jr, self.rp)
     for i in range(len(jointPoses)):

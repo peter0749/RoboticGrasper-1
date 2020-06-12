@@ -15,6 +15,7 @@ import random
 import pybullet_data
 from pkg_resources import parse_version
 import tm700
+from scipy.spatial.transform import Rotation as sciRotation
 largeValObservation = 100
 
 RENDER_HEIGHT = 720
@@ -199,20 +200,22 @@ class tm700_possensor_gym(gym.Env):
       realAction = [dx, dy, -0.0005, da, f]
     return self.step2(realAction)
 
-  def step_to_target_pose(self, action, max_iteration=5000, min_iteration=100, trans_eps=0.005, rot_eps=2.2, ts=None):
+  def step_to_target_pose(self, action, max_iteration=5000, min_iteration=100, trans_eps=0.005, rot_eps=0.2, ts=None):
+    success = False
     for ite in range(max_iteration):
       reward, done, state, info = self.step3(action)
       if done:
         break
       target_t = np.asarray(state[0])
-      target_r = np.asarray(state[1])
-      #print(target_t, action[:3])
-      trans_d =   np.linalg.norm(target_t-action[:3], ord=2)
-      rot_d = min(np.linalg.norm(target_r-action[3:], ord=2), np.linalg.norm(target_r+action[3:], ord=2))
+      target_r = sciRotation.from_quat(np.asarray(state[1])).as_matrix()
+      trans_d  = np.linalg.norm(target_t-action[0][:3,3], ord=2)
+      rot_d    = np.degrees(np.arcsin(np.linalg.norm(np.eye(3) - np.dot(action[0][:3,:3], target_r.T), ord=None) / (2*np.sqrt(2))))
       if trans_d<trans_eps and rot_d<rot_eps and ite>=min_iteration:
+        success = True
         break
       if not ts is None and ts>0:
           time.sleep(ts)
+    info['planning'] = success
     return reward, done, state, info
 
   def step3(self, action):

@@ -170,7 +170,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     for urdf_name in urdfList:
       xpos = 0.5 + self._blockRandom * random.random()
       ypos = self._blockRandom * (random.random() - .5)
-      orn = p.getQuaternionFromEuler([0, 0, np.random.uniform(-np.pi, np.pi)])
+      orn = p.getQuaternionFromEuler([0, 0, np.random.uniform(-np.pi/2.0, np.pi/2.0)])
       uid = p.loadURDF(urdf_name, [xpos, ypos, -0.012], [orn[0], orn[1], orn[2], orn[3]])
       objectUids.append(uid)
       # Let each object fall to the tray individual, to prevent object
@@ -470,13 +470,14 @@ if __name__ == '__main__':
   #p.setAdditionalSearchPath(datapath)
   start_obj_id = 3
   ts = 1/240.
-  test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
+  #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter/Simple_urdf')
+  test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter/YCB_valset_urdf')
   while True:
       test.reset()
       # Naive baseline for testing
       point_cloud, segmentation = test.getTargetGraspObservation()
       pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
-      random_pos = np.median(pc_flatten[segmentation.reshape(-1)==start_obj_id,:] + np.array([[0, 0, 0.125]]), axis=0)
+      random_pos = np.mean(pc_flatten[segmentation.reshape(-1)==start_obj_id,:], axis=0) + np.array([0, 0, 0.116])
       test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.0],  ts=ts, max_iteration=1000)
       test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=500)
       up_ops = random_pos + np.array([0, 0, 0.23])

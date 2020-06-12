@@ -206,6 +206,7 @@ class tm700_possensor_gym(gym.Env):
         break
       target_t = np.asarray(state[0])
       target_r = np.asarray(state[1])
+      #print(target_t, action[:3])
       trans_d =   np.linalg.norm(target_t-action[:3], ord=2)
       rot_d = min(np.linalg.norm(target_r-action[3:], ord=2), np.linalg.norm(target_r+action[3:], ord=2))
       if trans_d<trans_eps and rot_d<rot_eps and ite>=min_iteration:

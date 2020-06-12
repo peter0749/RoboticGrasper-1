@@ -305,34 +305,31 @@
   </joint>
   <link name="gripper_b_link">
   </link>
-  <!-- add crabbing 2-jaw gripper-->
-  <!--    <property name="gripper_length" value="0.1" />-->
-  <!--    <property name="gripper_height" value="0.1" />-->
-  <!--    <property name="gripper_right" value="0.05" />-->
-  <!--    -->
-  <!--    <link name="${prefix}finger_140_gripper_link">-->
-  <!--      <visual>-->
-  <!--        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>-->
-  <!--        <geometry>-->
-  <!--          <mesh filename="./meshes/gripper/2_finger_140_gripper.STL" scale="0.001 0.001 0.001"/>-->
-  <!--        </geometry>-->
-  <!--        <material name="black">-->
-  <!--          <color rgba="0.05 0.05 0.05 1"/>-->
-  <!--        </material>-->
-  <!--      </visual>-->
-  <!--      <collision>-->
-  <!--        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>-->
-  <!--        <geometry>-->
-  <!--          <mesh filename="./meshes/gripper/2_finger_140_gripper.STL" scale="0.001 0.001 0.001"/>-->
-  <!--        </geometry>-->
-  <!--      </collision>-->
-  <!--    </link>-->
-  <!--    -->
-  <!--    <joint name="${prefix}finger_140_gripper_joint" type="fixed">-->
-  <!--      <parent link="${prefix}tip_link"/>-->
-  <!--      <child link="${prefix}finger_140_gripper_link"/>-->
-  <!--      <origin xyz="${gripper_right} ${gripper_height} ${gripper_length}" rpy="1.5707 1.5707 0.0"/>-->
-  <!--    </joint>-->
-  <!-- ROS base to TM 'base_link' Coordinates transform -->
-
+  <joint name="forbidden_joint" type="fixed">
+    <parent link="forbidden_box"/>
+    <child link="base_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+  <link name="forbidden_box">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <mass value="0" />
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="0" />
+    </inertial>
+    <collision>
+        <origin rpy="3.14159265 0 0" xyz="0 0 -0.514"/>
+        <geometry>
+            <box size="2 2 1" />
+        </geometry>
+    </collision>
+    <visual>
+        <origin rpy="3.14159265 0 0" xyz="0 0 -0.514"/>
+        <geometry>
+            <box size="2 2 1" />
+        </geometry>
+        <material name="transparant">
+            <color rgba="0 0 0 0"/>
+        </material>
+    </visual>
+  </link>
 </robot>

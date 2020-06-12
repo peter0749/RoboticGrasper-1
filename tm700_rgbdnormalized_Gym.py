@@ -463,28 +463,82 @@ class tm700_rgbd_gym(tm700_possensor_gym):
 
 
 if __name__ == '__main__':
+  import sys
   import pcl
-  import cv2
+  import json
+  import torch
+  from gdn.representation.euler import *
+  from gdn.utils import *
+  from gdn.detector.edgeconv.backbone import EdgeDet
+  from scipy.spatial.transform import Rotation
+
+  with open('./gripper_config.json', 'r') as fp:
+      config = json.load(fp)
+
+  gripper_length = config['hand_height']
+  deepen_hand = 0.02
+  model = EdgeDet(config, activation_layer=EulerActivation())
+  model = model.cuda()
+  model = model.eval()
+  model.load_state_dict(torch.load(sys.argv[1])['base_model'])
+  representation = EulerRepresentation(config)
+  subsampling_util = val_collate_fn_setup(config)
 
   p.connect(p.GUI)
   #p.setAdditionalSearchPath(datapath)
   start_obj_id = 3
   ts = 1/240.
-  #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter/Simple_urdf')
-  test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter/YCB_valset_urdf')
-  while True:
-      test.reset()
-      # Naive baseline for testing
-      point_cloud, segmentation = test.getTargetGraspObservation()
-      pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
-      random_pos = np.mean(pc_flatten[segmentation.reshape(-1)==start_obj_id,:], axis=0) + np.array([0, 0, 0.116])
-      test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.0],  ts=ts, max_iteration=1000)
-      test.step_to_target_pose([*random_pos, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=500)
-      up_ops = random_pos + np.array([0, 0, 0.23])
-      test.step_to_target_pose([*up_ops, 0, np.pi/2.0, 0, 0.2],  ts=ts, max_iteration=1000)
-      if test._graspSuccess:
-          print("Grasp success!")
-      else:
-          print("Grasp failed!")
+  test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
+  #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
+  #test.reset()
+  #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0], ts=1/240.)
+  #time.sleep(3)
+  #exit(0)
+
+  first = True
+  with torch.no_grad():
+      while True:
+          test.reset()
+          # Naive baseline for testing
+          point_cloud, segmentation = test.getTargetGraspObservation()
+          pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
+          if first:
+              first = False
+              pc = pcl.PointCloud(pc_flatten)
+              pc.to_file(b'test.pcd')
+          pc_npy = pc_flatten[segmentation.reshape(-1)==start_obj_id,:] # (N, 3)
+          if pc_npy.shape[0]<config['subsample_levels'][0]:
+              pc_npy = np.append(pc_npy, pc_npy[np.random.choice(len(pc_npy), config['subsample_levels'][0]-len(pc_npy), replace=True)], axis=0)
+          trans_to_frame = (np.max(pc_npy, axis=0) + np.min(pc_npy, axis=0)) / 2.0
+          trans_to_frame[2] = 0.0
+          pc_npy -= trans_to_frame
+          pc_npy = pc_npy[np.newaxis] # (1, N, 3)
+          pc_batch, indices, reverse_lookup_index, _ = subsampling_util([(pc_npy[0],None),])
+          pred = model(pc_batch.cuda(), [pt_idx.cuda() for pt_idx in indices]).cpu().numpy()
+          pred_poses = representation.retrive_from_feature_volume_batch(pc_npy, reverse_lookup_index, pred, n_output=1000, threshold=-1e8, nms=False)[0]
+          pred_poses = [(x[0], np.append(x[1][:3,:3], x[1][:3,3:4]+trans_to_frame[...,np.newaxis], axis=1)) for x in pred_poses]
+          pred_poses = representation.filter_out_invalid_grasp_batch(pc_flatten[np.newaxis], [pred_poses])[0]
+          new_pred_poses = []
+          for pose in pred_poses:
+              score    = pose[0]
+              rotation = pose[1][:3,:3]
+              trans    = pose[1][:3, 3]
+              approach = rotation[:3,0]
+              trans_backward = trans - approach*deepen_hand
+              new_pred_poses.append((score, np.append(rotation, trans_backward[...,np.newaxis], axis=1)))
+          pred_poses = representation.filter_out_invalid_grasp_batch(pc_flatten[np.newaxis], [new_pred_poses])[0]
+          best_grasp = pred_poses[0][1] # (3, 4)
+          rpy = Rotation.from_matrix(best_grasp[:3,:3]).as_euler('xyz')
+          trans_backward = best_grasp[:,3]
+          trans = trans_backward + best_grasp[:3,0]*deepen_hand
+          test.step_to_target_pose([*trans_backward, *rpy, 0.0],  ts=ts, max_iteration=1000)
+          test.step_to_target_pose([*trans, *rpy, 0.0],  ts=ts, max_iteration=1000)
+          test.step_to_target_pose([*trans, *rpy, 0.2],  ts=ts, max_iteration=500)
+          up_ops = trans + np.array([0, 0, 0.23])
+          test.step_to_target_pose([*up_ops,*rpy, 0.2],  ts=ts, max_iteration=1000)
+          if test._graspSuccess:
+              print("Grasp success!")
+          else:
+              print("Grasp failed!")
 
 

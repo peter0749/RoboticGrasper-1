@@ -23,22 +23,22 @@ class tm700:
     self.useSimulation = 1
     self.useNullSpace = 1
     self.useOrientation = 0
-    self.tmEndEffectorIndex = 6
-    self.tmGripperBottomCenterIndex = 10
-    self.tmGripperIndex = 6
-    self.tmFingerIndexL = 8
-    self.tmFingerIndexR = 9 # not clear whether right and left is correct
+    self.tmEndEffectorIndex = 7
+    self.tmGripperBottomCenterIndex = 11
+    self.tmGripperIndex = 7
+    self.tmFingerIndexL = 9
+    self.tmFingerIndexR = 10 # not clear whether right and left is correct
     # lower limits for null space
     # self.ll = [-.967, -2, -2.96, 0.19, -2.96, -2.09, -3.05]
-    self.ll = [-10, -10, -10, -10, -10, -10, -10, -10]
+    self.ll = [-10, -10, -10, -10, -10, -10, -10]
 
     # upper limits for null space
-    self.ul = [10, 10, 10, 10, 10, 10, 10, 10]
+    self.ul = [10, 10, 10, 10, 10, 10, 10]
     # joint ranges for null space
     # self.jr = [5.8, 4, 5.8, 4, 5.8, 4, 6]
-    self.jr = [10, 10, 10, 10, 10, 10, 10, 10]
+    self.jr = [10, 10, 10, 10, 10, 10, 10]
     # restposes for null space
-    self.rp = [0, 0, 0, 0.5 * math.pi, 0, -math.pi * 0.5 * 0.66, 0, 0]
+    self.rp = [0, 0, 0.5 * math.pi, 0, -math.pi * 0.5 * 0.66, 0, 0]
     # joint damping coefficents
     self.jd = None
     #     [
@@ -49,12 +49,13 @@ class tm700:
 
   def reset(self):
 
-    robot = p.loadURDF("./Gazebo_arm/urdf/tm700_robot_clean.urdf") #add two dots to start it from pycharm. i have no idea why. TODO:
+    #robot = p.loadURDF("./Gazebo_arm/urdf/tm700_robot_clean.urdf") #add two dots to start it from pycharm. i have no idea why. TODO:
+    robot = p.loadURDF("./Gazebo_arm/urdf/tm700_robot_clean.urdf", flags=p.URDF_USE_SELF_COLLISION) #add two dots to start it from pycharm. i have no idea why. TODO:
     self.tm700Uid = robot
     p.resetBasePositionAndOrientation(self.tm700Uid, [0.0, 0.0, -0.0], # position of robot, GREEN IS Y AXIS
                                       [0.000000, 0.000000, 1.000000, 0.000000]) # direction of robot
     self.jointPositions = [
-        0.0, -0, -1.2, -0.0, -1.6, -0, -0, 1.5, -0.02,0.02,0] # position 6 is actually gripper joint
+        0.0, 0.0, -0, -1.2, -0.0, -1.6, -0, -0, 1.5, -0.02,0.02,0] # position 6 is actually gripper joint
 
     self.numJoints = p.getNumJoints(self.tm700Uid)
     for jointIndex in range(self.numJoints):
@@ -118,9 +119,9 @@ class tm700:
     orn = p.getQuaternionFromEuler([roll, pitch, yaw])  # -math.pi,yaw])
     jointPoses = p.calculateInverseKinematics(self.tm700Uid, self.tmGripperBottomCenterIndex, pos,
                                               orn, self.ll, self.ul, self.jr, self.rp)
-    for i in range(self.tmEndEffectorIndex):
+    for i in range(len(jointPoses)):
       p.setJointMotorControl2(bodyUniqueId=self.tm700Uid,
-                              jointIndex=i,
+                              jointIndex=self.motorIndices[i],
                               controlMode=p.POSITION_CONTROL,
                               targetPosition=jointPoses[i],
                               targetVelocity=0,
@@ -136,13 +137,13 @@ class tm700:
     self.endGripperBottomQuat = state[1]
 
     p.setJointMotorControl2(self.tm700Uid,
-                        8,
+                        self.tmFingerIndexL,
                         p.POSITION_CONTROL,
                         targetPosition=-fingerAngle/4.,
                         force=self.fingerTipForce)
 
     p.setJointMotorControl2(self.tm700Uid,
-                        9,
+                        self.tmFingerIndexR,
                         p.POSITION_CONTROL,
                         targetPosition=fingerAngle/4.,
                         force=self.fingerTipForce)
@@ -214,13 +215,13 @@ class tm700:
 
 
       p.setJointMotorControl2(self.tm700Uid,
-                          8,
+                          self.tmFingerIndexL,
                           p.POSITION_CONTROL,
                           targetPosition=-fingerAngle/4.,
                           force=self.fingerTipForce)
 
       p.setJointMotorControl2(self.tm700Uid,
-                          9,
+                          self.tmFingerIndexR,
                           p.POSITION_CONTROL,
                           targetPosition=fingerAngle/4.,
                           force=self.fingerTipForce)
@@ -241,12 +242,12 @@ class tm700:
   def grasping(self):
 
     p.setJointMotorControl2(self.tm700Uid,
-                          8,
+                          self.tmFingerIndexL,
                           p.POSITION_CONTROL,
                           targetPosition=0,
                           force=self.fingerTipForce)
     p.setJointMotorControl2(self.tm700Uid,
-                          9,
+                          self.tmFingerIndexR,
                           p.POSITION_CONTROL,
                           targetPosition=0,
                           force=self.fingerTipForce)

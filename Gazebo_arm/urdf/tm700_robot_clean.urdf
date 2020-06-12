@@ -215,7 +215,7 @@
       <mass value="0.0795745052466434"/>
       <inertia ixx="3.27413333929741E-05" ixy="3.7314060486416E-08" ixz="3.97669066588691E-06" iyy="4.47182985231326E-05" iyz="-9.49992756213297E-09" izz="5.02142570756738E-05"/>
     </inertial>
-    <visual>
+    <!--visual>
       <origin rpy="1.5707963269 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="./meshes/toyo_s68/Head.stl" scale="0.001 0.001 0.001"/>
@@ -223,13 +223,13 @@
       <material name="">
         <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
       </material>
-    </visual>
-    <collision>
+    </visual-->
+    <!--collision>
       <origin rpy="1.5707963269 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="./meshes/toyo_s68/Head.stl" scale="0.001 0.001 0.001"/>
       </geometry>
-    </collision>
+    </collision-->
   </link>
   <joint name="gripper_joint" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0.06"/>

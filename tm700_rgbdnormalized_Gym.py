@@ -476,7 +476,7 @@ if __name__ == '__main__':
       config = json.load(fp)
 
   gripper_length = config['hand_height']
-  deepen_hand = 0.02
+  deepen_hand = 0.10
   model = EdgeDet(config, activation_layer=EulerActivation())
   model = model.cuda()
   model = model.eval()
@@ -488,8 +488,8 @@ if __name__ == '__main__':
   #p.setAdditionalSearchPath(datapath)
   start_obj_id = 3
   ts = 1/240.
-  test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-  #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
+  #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
+  test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
   #test.reset()
   #test.step_to_target_pose([0.4317596244807792, 0.1470447615125933, 0.40, 0, 0, 0, 0], ts=1/240.)
   #time.sleep(3)
@@ -530,8 +530,10 @@ if __name__ == '__main__':
           best_grasp = pred_poses[0][1] # (3, 4)
           rpy = Rotation.from_matrix(best_grasp[:3,:3]).as_euler('xyz')
           trans_backward = best_grasp[:,3]
+          print(best_grasp[:3,0])
           trans = trans_backward + best_grasp[:3,0]*deepen_hand
           test.step_to_target_pose([*trans_backward, *rpy, 0.0],  ts=ts, max_iteration=1000)
+          time.sleep(10)
           test.step_to_target_pose([*trans, *rpy, 0.0],  ts=ts, max_iteration=1000)
           test.step_to_target_pose([*trans, *rpy, 0.2],  ts=ts, max_iteration=500)
           up_ops = trans + np.array([0, 0, 0.23])

@@ -551,7 +551,6 @@ if __name__ == '__main__':
                   continue
               if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
                   continue
-              '''
               while True: # check if gripper collide with table
                   tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
                   gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], tmp_pose, config['thickness_side'])
@@ -559,7 +558,6 @@ if __name__ == '__main__':
                   if gripper_l_t[2]>0.001 and gripper_r_t[2]>0.001:
                       break
                   trans = trans - approach * 0.001
-              '''
               trans_backward = trans - approach * deepen_hand
               new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
               new_pred_poses.append((score, new_pose))
@@ -594,7 +592,6 @@ if __name__ == '__main__':
           pose_backward = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
           for link_name, link_id in tm_link_name_to_index.items():
               p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, link_id, -1, 0)
-              p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, link_id, -1, 0)
               for obj_id, obj in obj_link_name_to_index:
                   for obj_name, obj_link in obj.items():
                     # temporary disable collision detection and move to ready pose
@@ -606,6 +603,10 @@ if __name__ == '__main__':
               for obj_id, obj in obj_link_name_to_index:
                   for obj_name, obj_link in obj.items():
                     p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 1)
+          # Enable collision detection for gripper head, fingers
+          p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['gripper_link'], -1, 1)
+          p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_r_link'], -1, 1)
+          p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_l_link'], -1, 1)
           # Deepen gripper hand
           for d in np.linspace(0, 1, 100):
               info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=10, min_iteration=1)[-1]

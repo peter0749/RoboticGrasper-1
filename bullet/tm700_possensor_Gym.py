@@ -345,7 +345,6 @@ class tm700_possensor_gym(gym.Env):
       # reward = 1/closestPoints1[0][8]+1/closestPoints2[0][8]
     if (blockPos[2] > 0.2):
       reward = reward + 1000
-      print("successfully grasped a block!!!")
       #print("self._envStepCounter")
       #print(self._envStepCounter)
       #print("self._envStepCounter")

@@ -50,13 +50,13 @@ class tm700:
 
   def reset(self):
 
-    #robot = p.loadURDF("./Gazebo_arm/urdf/tm700_robot_clean.urdf") #add two dots to start it from pycharm. i have no idea why. TODO:
-    robot = p.loadURDF("./Gazebo_arm/urdf/tm700_robot_clean.urdf", flags=p.URDF_USE_SELF_COLLISION) #add two dots to start it from pycharm. i have no idea why. TODO:
+    robot = p.loadURDF("./Gazebo_arm/urdf/tm700_robot_clean.urdf") #add two dots to start it from pycharm. i have no idea why. TODO:
+    #robot = p.loadURDF("./Gazebo_arm/urdf/tm700_robot_clean.urdf", flags=p.URDF_USE_SELF_COLLISION) #add two dots to start it from pycharm. i have no idea why. TODO:
     self.tm700Uid = robot
     p.resetBasePositionAndOrientation(self.tm700Uid, [0.0, 0.0, -0.0], # position of robot, GREEN IS Y AXIS
                                       [0.000000, 0.000000, 1.000000, 0.000000]) # direction of robot
     self.jointPositions = [
-        0.0, 0.0, -0, -1.2, -0.0, -1.6, -0, -0, 1.5, -0.02,0.02,0] # position 6 is actually gripper joint
+        0.0, 0.0, -0, -1.0, -0.0, -1.6, -0, -0, 1.5, -0.02,0.02,0] # position 6 is actually gripper joint
 
     self.numJoints = p.getNumJoints(self.tm700Uid)
     for jointIndex in range(self.numJoints):

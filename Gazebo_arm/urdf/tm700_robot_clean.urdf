@@ -11,7 +11,8 @@
         <mesh filename="./meshes/tm700/visual/Base.STL"/>
       </geometry>
       <material name="Grey">
-        <color rgba="0.5 0.5 0.5 1.0"/>
+        <!--color rgba="0.5 0.5 0.5 1.0"/-->
+        <color rgba="0.5 0.5 0.5 0.0"/>
       </material>
     </visual>
     <collision>
@@ -31,7 +32,8 @@
         <mesh filename="./meshes/tm700/visual/Shoulder1.STL"/>
       </geometry>
       <material name="DarkOlive">
-        <color rgba="0.3 0.3 0.25 1.0"/>
+        <!--color rgba="0.3 0.3 0.25 1.0"/-->
+        <color rgba="0.3 0.3 0.25 0.0"/>
       </material>
     </visual>
     <collision>
@@ -59,7 +61,8 @@
         <mesh filename="./meshes/tm700/visual/Arm1.STL"/>
       </geometry>
       <material name="DarkOlive">
-        <color rgba="0.3 0.3 0.25 1.0"/>
+        <!--color rgba="0.3 0.3 0.25 1.0"/-->
+        <color rgba="0.3 0.3 0.25 0.0"/>
       </material>
     </visual>
     <collision>
@@ -87,7 +90,8 @@
         <mesh filename="./meshes/tm700/visual/Arm2.STL"/>
       </geometry>
       <material name="DarkOlive">
-        <color rgba="0.3 0.3 0.25 1.0"/>
+        <!--color rgba="0.3 0.3 0.25 1.0"/-->
+        <color rgba="0.3 0.3 0.25 0.0"/>
       </material>
     </visual>
     <collision>
@@ -115,7 +119,8 @@
         <mesh filename="./meshes/tm700/visual/Wrist1.STL"/>
       </geometry>
       <material name="DarkOlive">
-        <color rgba="0.3 0.3 0.25 1.0"/>
+        <!--color rgba="0.3 0.3 0.25 1.0"/-->
+        <color rgba="0.3 0.3 0.25 0.0"/>
       </material>
     </visual>
     <collision>
@@ -143,7 +148,8 @@
         <mesh filename="./meshes/tm700/visual/Wrist2.STL"/>
       </geometry>
       <material name="DarkOlive">
-        <color rgba="0.3 0.3 0.25 1.0"/>
+        <!--color rgba="0.3 0.3 0.25 1.0"/-->
+        <color rgba="0.3 0.3 0.25 0.0"/>
       </material>
     </visual>
     <collision>
@@ -172,7 +178,8 @@
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0.015"/>
       <material name="Grey">
-        <color rgba="0.5 0.5 0.5 1.0"/>
+        <!--color rgba="0.5 0.5 0.5 1.0"/-->
+        <color rgba="0.5 0.5 0.5 0.0"/>
       </material>
     </visual>
     <collision>
@@ -202,6 +209,15 @@
       </geometry>
       <origin rpy="0 0 0" xyz="0 0 0.0025"/>
     </collision>
+    <visual>
+      <geometry>
+        <box size="0.02 0.02 0.02"/>
+      </geometry>
+      <material name="transparant">
+        <color rgba="0 0 0 0"/>
+      </material>
+      <origin rpy="0 0 0" xyz="0 0 0.0025"/>
+    </visual>
   </link>
   <joint name="tip_fixed_joint" type="fixed">
     <parent link="wrist_3_link"/>
@@ -299,7 +315,7 @@
     <limit effort="1" lower="0" upper="1" velocity="1"/>
   </joint>
   <joint name="gripper_b_joint" type="fixed">
-    <origin rpy="-1.5707963269 -1.5707963269 0" xyz="0 0 0.09"/>
+    <origin rpy="-1.5707963269 -1.5707963269 0" xyz="0 0 0.095"/>
     <parent link="gripper_link"/>
     <child link="gripper_b_link"/>
   </joint>

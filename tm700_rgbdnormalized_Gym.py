@@ -470,7 +470,7 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       input_points = 2048
@@ -619,6 +619,7 @@ if __name__ == '__main__':
                       if not info['planning']:
                           fail_and_ik_fail += 1
                   obj_success_rate[test._current_objList[0]] = (obj_success_n, obj_iter_n)
+              result_fp.write("Iteration %d:\n"%(ite+1))
               for obj_name in sorted(list(obj_success_rate)):
                   s_n = obj_success_rate[obj_name]
                   rate = float(s_n[0]) / float(s_n[1])

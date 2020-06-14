@@ -381,7 +381,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
       # reward = 1/closestPoints1[0][8]+1/closestPoints2[0][8]
     if (blockPos[2] > 0.2):
       reward = reward + 1000
-      print("successfully grasped a block!!!")
+      #print("successfully grasped a block!!!")
       self._graspSuccess = True
       #print("self._envStepCounter")
       #print(self._envStepCounter)
@@ -479,6 +479,7 @@ if __name__ == '__main__':
   import pcl
   import json
   import torch
+  torch.backends.cudnn.benchmark = True
   from gdn.representation.euler import *
   from gdn.utils import *
   from gdn.detector.edgeconv.backbone import EdgeDet
@@ -496,7 +497,7 @@ if __name__ == '__main__':
   representation = EulerRepresentation(config)
   subsampling_util = val_collate_fn_setup(config)
 
-  p.connect(p.GUI)
+  #p.connect(p.GUI)
   #p.setAdditionalSearchPath(datapath)
   start_obj_id = 3
   input_points = 2048
@@ -512,17 +513,24 @@ if __name__ == '__main__':
   for uid in test._objectUids:
       obj_link_name_to_index.append((uid, get_name_to_link(uid)))
 
-  first = True
+  #first = True
+  success_n = 0
+  fail_n = 0
+  fail_and_ik_fail = 0
+  no_solution_fail = 0
+  total_n = 300
   with torch.no_grad():
-      while True:
+      for ite in range(total_n):
           test.reset()
           # Naive baseline for testing
           point_cloud, segmentation = test.getTargetGraspObservation()
           pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
           pc_no_arm = pc_flatten[segmentation.reshape(-1)>0,:] # (N, 3)
+          '''
           if first:
               pc = pcl.PointCloud(pc_no_arm)
               pc.to_file(b'test.pcd')
+          '''
           pc_npy = pc_flatten[segmentation.reshape(-1)==start_obj_id,:] # (N, 3)
           if pc_npy.shape[0]<input_points:
               pc_npy = np.append(pc_npy, pc_npy[np.random.choice(len(pc_npy), input_points-len(pc_npy), replace=True)], axis=0)
@@ -531,13 +539,15 @@ if __name__ == '__main__':
           trans_to_frame = (np.max(pc_npy, axis=0) + np.min(pc_npy, axis=0)) / 2.0
           trans_to_frame[2] = np.min(pc_npy[:,2])
           pc_npy -= trans_to_frame
+          '''
           if first:
               pc = pcl.PointCloud(pc_npy)
               pc.to_file(b'test_local.pcd')
           first = False
+          '''
           pc_batch, indices, reverse_lookup_index, _ = subsampling_util([(pc_npy,None),])
           pred = model(pc_batch.cuda(), [pt_idx.cuda() for pt_idx in indices]).cpu().numpy()
-          pred_poses = representation.retrive_from_feature_volume_batch(pc_npy[np.newaxis]+trans_to_frame[np.newaxis], reverse_lookup_index, pred, n_output=500, threshold=-np.inf, nms=False)[0]
+          pred_poses = representation.retrive_from_feature_volume_batch(pc_npy[np.newaxis]+trans_to_frame[np.newaxis], reverse_lookup_index, pred, n_output=3000, threshold=-np.inf, nms=True)[0]
           pred_poses = representation.filter_out_invalid_grasp_batch(pc_no_arm[np.newaxis], [pred_poses], n_collision=1)[0]
           print('Generated1 %d grasps'%len(pred_poses))
           new_pred_poses = []
@@ -582,44 +592,52 @@ if __name__ == '__main__':
               input()
           if len(pred_poses)==0:
               print("No suitable grasp found.")
-              continue
-          best_grasp = pred_poses[0][1] # (3, 4)
-          rotation = best_grasp[:3,:3]
-          trans_backward = best_grasp[:,3]
-          approach = best_grasp[:3,0]
-          trans = trans_backward + approach*deepen_hand
-          pose = np.append(rotation, trans[...,np.newaxis], axis=1)
-          pose_backward = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
-          for link_name, link_id in tm_link_name_to_index.items():
-              p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, link_id, -1, 0)
-              for obj_id, obj in obj_link_name_to_index:
-                  for obj_name, obj_link in obj.items():
-                    # temporary disable collision detection and move to ready pose
-                    p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 0)
-          # Ready to grasp pose
-          test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=2000, min_iteration=0)
-          # Enable collision detection to test if a grasp is successful.
-          for link_name, link_id in tm_link_name_to_index.items():
-              for obj_id, obj in obj_link_name_to_index:
-                  for obj_name, obj_link in obj.items():
-                    p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 1)
-          # Enable collision detection for gripper head, fingers
-          p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['gripper_link'], -1, 1)
-          p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_r_link'], -1, 1)
-          p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_l_link'], -1, 1)
-          # Deepen gripper hand
-          for d in np.linspace(0, 1, 100):
-              info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=10, min_iteration=1)[-1]
-          if not info['planning']:
-              print("Inverse Kinematics failed.")
-              #continue
-          # Grasp it
-          test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=500, min_iteration=5)
-          pose[:3,3] += np.array([0, 0, 0.25])
-          # Test if we can lift the object
-          test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=1000, min_iteration=5)
-          if test.check_if_grasp_success(gripper_length):
-              print("Grasp success!")
+              no_solution_fail += 1
           else:
-              print("Grasp failed!")
-
+              best_grasp = pred_poses[0][1] # (3, 4)
+              rotation = best_grasp[:3,:3]
+              trans_backward = best_grasp[:,3]
+              approach = best_grasp[:3,0]
+              trans = trans_backward + approach*deepen_hand
+              pose = np.append(rotation, trans[...,np.newaxis], axis=1)
+              pose_backward = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
+              for link_name, link_id in tm_link_name_to_index.items():
+                  p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, link_id, -1, 0)
+                  for obj_id, obj in obj_link_name_to_index:
+                      for obj_name, obj_link in obj.items():
+                        # temporary disable collision detection and move to ready pose
+                        p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 0)
+              # Ready to grasp pose
+              test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=2000, min_iteration=0)
+              # Enable collision detection to test if a grasp is successful.
+              for link_name, link_id in tm_link_name_to_index.items():
+                  for obj_id, obj in obj_link_name_to_index:
+                      for obj_name, obj_link in obj.items():
+                        p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 1)
+              # Enable collision detection for gripper head, fingers
+              p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['gripper_link'], -1, 1)
+              p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_r_link'], -1, 1)
+              p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_l_link'], -1, 1)
+              # Deepen gripper hand
+              for d in np.linspace(0, 1, 100):
+                  info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=10, min_iteration=1)[-1]
+              if not info['planning']:
+                  print("Inverse Kinematics failed.")
+              # Grasp it
+              test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=500, min_iteration=5)
+              pose[:3,3] += np.array([0, 0, 0.25])
+              # Test if we can lift the object
+              test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=1000, min_iteration=5)
+              if test.check_if_grasp_success(gripper_length):
+                  print("Grasp success!")
+                  success_n += 1
+              else:
+                  print("Grasp failed!")
+                  fail_n += 1
+                  if not info['planning']:
+                      fail_and_ik_fail += 1
+          print("Success rate (current): %.4f (%d | %d | %d | %d)"%(success_n / (ite+1), success_n, fail_n, fail_and_ik_fail, no_solution_fail))
+          sys.stdout.flush()
+          assert success_n + fail_n + no_solution_fail == ite+1
+  print("Success rate: %.6f"%(success_n/total_n))
+  sys.stdout.flush()

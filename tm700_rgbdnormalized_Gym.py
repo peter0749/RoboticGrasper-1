@@ -470,7 +470,7 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       input_points = 2048
@@ -599,14 +599,17 @@ if __name__ == '__main__':
                   # Grasp it
                   test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=500, min_iteration=5)
                   # Test if we can lift the object
+                  p.setGravity(0, 0, -10)
                   pose[:3,3] += np.array([0, 0, 0.25])
                   test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=1000, min_iteration=5)
+                  for _ in range(1000):
+                      p.stepSimulation()
                   if not test._current_objList[0] in obj_success_rate:
                       obj_success_rate[test._current_objList[0]] = (0, 0)
                   # Compute success rate for each object
                   obj_iter_n = obj_success_rate[test._current_objList[0]][1] + 1
                   obj_success_n = obj_success_rate[test._current_objList[0]][0]
-                  if test.check_if_grasp_success(gripper_length*1.2):
+                  if test.check_if_grasp_success(0.50):
                       print("Grasp success!")
                       success_n += 1
                       obj_success_n += 1

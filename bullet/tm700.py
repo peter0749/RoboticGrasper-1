@@ -19,7 +19,7 @@ class tm700:
     self.timeStep = timeStep
     self.maxVelocity = .35
     self.maxForce = 200.
-    self.fingerTipForce = 40.
+    self.fingerTipForce = 20.
     self.useInverseKinematics = 1
     self.useSimulation = 1
     self.useNullSpace = 1

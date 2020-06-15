@@ -254,7 +254,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     """Environment reset called at the beginning of an episode.
     """
     # Set the camera settings.
-    look = [0.10, -0.30, 0.60]
+    look = [0.10, -0.20, 0.60]
     self._cam_pos = look
     distance = 0.1
     pitch = -45
@@ -701,10 +701,10 @@ if __name__ == '__main__':
                   trans    = pose[1][:3, 3]
                   approach = rotation[:3,0]
                   # if there is no suitable IK solution can be found. found next
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(60):
-                      # Set larger rotation range for GPD/PointnetGPD since it may not able to find a feasible grasp
+                  # Set larger rotation range for GPD/PointnetGPD since it may not able to find a feasible grasp
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(85):
                       continue
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(85):
                       continue
                   while True: # check if gripper collide with table
                       tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)

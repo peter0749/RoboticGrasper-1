@@ -118,7 +118,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     """Environment reset called at the beginning of an episode.
     """
     # Set the camera settings.
-    look = [0.10, -0.30, 0.60]
+    look = [0.10, -0.20, 0.60]
     self._cam_pos = look
     distance = 0.1
     pitch = -45

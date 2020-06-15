@@ -272,8 +272,8 @@ class GpgGraspSamplerPcl(GraspSampler):
            list of generated grasps
         """
         params = {
-            'num_dy': 4,   # number (totaly 9 translations)
-            'dtheta': 10,  # unit degree (9 rotation)
+            'num_dy': 2,   # number
+            'dtheta': 24,  # unit degree
             'range_dtheta': 90,
             'r_ball': 0.01,
             'approach_step': 0.005,

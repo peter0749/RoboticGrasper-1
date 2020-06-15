@@ -26,9 +26,9 @@ with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
 
 # Use same parameters as in training stage
-num_grasps = 5000
+num_grasps = 6000
 num_workers = 10
-max_num_samples = 100
+max_num_samples = 150
 minimal_points_send_to_point_net = 20
 input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
@@ -577,7 +577,7 @@ if __name__ == '__main__':
   model.load_state_dict(torch.load(sys.argv[1]))
 
   with open(output_path, 'w') as result_fp:
-      #p.connect(p.GUI)
+      p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       ts = None #1/240.
@@ -636,7 +636,10 @@ if __name__ == '__main__':
                   grasp_position_model = grasp[4]
                   approach = grasp[1] # X (normal)
                   binormal = grasp[2] # Y (major)
-                  minor_pc = grasp[3] # Z (minor)
+                  #minor_pc = grasp[3] # Z (minor)
+                  approach = approach / max(1e-10, np.linalg.norm(approach))
+                  binormal = binormal / max(1e-10, np.linalg.norm(binormal))
+                  minor_pc = np.cross(approach, binormal)
                   if minor_pc[2]<0:
                       binormal *= -1.
                       minor_pc *= -1.

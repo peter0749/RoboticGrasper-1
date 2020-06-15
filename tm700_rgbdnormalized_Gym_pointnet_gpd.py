@@ -10,12 +10,148 @@ import numpy as np
 import pybullet_data
 import pdb
 import distutils.dir_util
+import json
 import glob
 from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
 from mayavi import mlab
+import pcl
+import voxelgrid
+import multiprocessing as mp
+from gpg_sampler import GpgGraspSamplerPcl
+
+
+with open('./gripper_config.json', 'r') as fp:
+    config = json.load(fp)
+
+# Use same parameters as in repo of PointnetGPD
+num_grasps = 1000
+num_workers = 10
+max_num_samples = 150
+n_voxel = 500
+minimal_points_send_to_point_net = 20
+input_points_num = 500
+ags = GpgGraspSamplerPcl(config)
+
+def get_voxel_fun(points_, n):
+    get_voxel = voxelgrid.VoxelGrid(points_, n_x=n, n_y=n, n_z=n)
+    get_voxel.compute()
+    points_voxel_ = get_voxel.voxel_centers[get_voxel.voxel_n]
+    points_voxel_ = np.unique(points_voxel_, axis=0)
+    return points_voxel_
+
+def cal_grasp(points_, cam_pos_):
+    points_ = points_.astype(np.float32)
+    # begin voxel points
+    n = n_voxel  # parameter related to voxel method
+    # gpg improvements, highlights: flexible n parameter for voxelizing.
+    points_voxel_ = get_voxel_fun(points_, n)
+    if len(points_) < 2000:  # should be a parameter
+        while len(points_voxel_) < len(points_)-15:
+            points_voxel_ = get_voxel_fun(points_, n)
+            n = n + 100
+
+    points_ = points_voxel_
+    point_cloud = pcl.PointCloud(points_)
+    norm = point_cloud.make_NormalEstimation()
+    norm.set_KSearch(30)  # critical parameter when calculating the norms
+    normals = norm.compute()
+    surface_normal = normals.to_array()
+    surface_normal = surface_normal[:, 0:3]
+    vector_p2cam = cam_pos_ - points_
+    vector_p2cam = vector_p2cam / np.linalg.norm(vector_p2cam, axis=1).reshape(-1, 1)
+    tmp = np.dot(vector_p2cam, surface_normal.T).diagonal()
+    angel = np.arccos(np.clip(tmp, -1.0, 1.0))
+    wrong_dir_norm = np.where(angel > np.pi * 0.5)[0]
+    tmp = np.ones([len(angel), 3])
+    tmp[wrong_dir_norm, :] = -1
+    surface_normal = surface_normal * tmp
+    points_for_sample = points_
+    if len(points_for_sample) == 0:
+        return [], points_, surface_normal
+    #grasps_together_ = ags.sample_grasps(point_cloud, points_for_sample, surface_normal, num_grasps,
+    #                                     max_num_samples=max_num_samples)
+    def grasp_task(num_grasps_, ags_, queue_):
+        ret = ags_.sample_grasps(point_cloud, points_for_sample, surface_normal, num_grasps_,
+                                 max_num_samples=max_num_samples)
+        queue_.put(ret)
+
+    queue = mp.Queue()
+    num_grasps_p_worker = int(num_grasps/num_workers)
+    workers = [mp.Process(target=grasp_task, args=(num_grasps_p_worker, ags, queue)) for _ in range(num_workers)]
+    [i.start() for i in workers]
+
+    grasps_together_ = []
+    for i in range(num_workers):
+        grasps_together_ = grasps_together_ + queue.get()
+    return grasps_together_, points_, surface_normal
+
+def check_collision_square(grasp_bottom_center, approach_normal, binormal,
+                           minor_pc, points_, p, way="p_open"):
+    approach_normal = approach_normal.reshape(1, 3)
+    approach_normal = approach_normal / np.linalg.norm(approach_normal)
+    binormal = binormal.reshape(1, 3)
+    binormal = binormal / np.linalg.norm(binormal)
+    minor_pc = minor_pc.reshape(1, 3)
+    minor_pc = minor_pc / np.linalg.norm(minor_pc)
+    matrix_ = np.hstack([approach_normal.T, binormal.T, minor_pc.T])
+    grasp_matrix = matrix_.T
+    points_ = points_ - grasp_bottom_center.reshape(1, 3)
+    tmp = np.dot(grasp_matrix, points_.T)
+    points_g = tmp.T
+
+    width = ags.config['gripper_width']
+    x_limit = ags.config['hand_height']
+    z_limit = width / 4
+    y_limit = width / 2
+    x1 = points_g[:, 0] > 0
+    x2 = points_g[:, 0] < x_limit
+    y1 = points_g[:, 1] > -y_limit
+    y2 = points_g[:, 1] < y_limit
+    z1 = points_g[:, 2] > -z_limit
+    z2 = points_g[:, 2] < z_limit
+    a = np.vstack([x1, x2, y1, y2, z1, z2])
+    points_in_area = np.where(np.sum(a, axis=0) == len(a))[0]
+    if len(points_in_area) == 0:
+        has_p = False
+    else:
+        has_p = True
+
+    vis = False
+    if vis:
+        p = points_g
+        mlab.points3d(p[:, 0], p[:, 1], p[:, 2], scale_factor=0.002, color=(0, 0, 1))
+        p = points_g[points_in_area]
+        mlab.points3d(p[:, 0], p[:, 1], p[:, 2], scale_factor=0.002, color=(1, 0, 0))
+        p = ags.get_hand_points(np.array([0, 0, 0]), np.array([1, 0, 0]), np.array([0, 1, 0]))
+        mlab.points3d(p[:, 0], p[:, 1], p[:, 2], scale_factor=0.005, color=(0, 1, 0))
+        mlab.show()
+
+    return has_p, points_in_area, points_g
+
+def collect_pc(grasp_, pc):
+    """
+    grasp_bottom_center, normal, major_pc, minor_pc
+    """
+    grasp_num = len(grasp_)
+    grasp_ = np.array(grasp_)
+    grasp_ = grasp_.reshape(-1, 5, 3)  # prevent to have grasp that only have number 1
+    grasp_bottom_center = grasp_[:, 0]
+    approach_normal = grasp_[:, 1]
+    binormal = grasp_[:, 2]
+    minor_pc = grasp_[:, 3]
+
+    in_ind_ = []
+    in_ind_points_ = []
+    p = ags.get_hand_points(np.array([0, 0, 0]), np.array([1, 0, 0]), np.array([0, 1, 0]))
+    for i_ in range(grasp_num):
+        has_p, in_ind_tmp, points_g = check_collision_square(grasp_bottom_center[i_], approach_normal[i_],
+                                                             binormal[i_], minor_pc[i_], pc, p)
+        in_ind_.append(in_ind_tmp)
+        in_ind_points_.append(points_g[in_ind_[i_]])
+    return in_ind_, in_ind_points_
 
 
 class tm700_rgbd_gym(tm700_possensor_gym):
@@ -126,15 +262,6 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     roll = 120
     self._view_matrix = p.computeViewMatrixFromYawPitchRoll(look, distance, yaw, pitch, roll, 2)
     self.fov = 35.
-    '''
-    look = [0.90, -0.28, 0.43]
-    distance = 0.15
-    pitch = -45
-    yaw = 45 # -45
-    roll = 180
-    self._view_matrix = p.computeViewMatrixFromYawPitchRoll(look, distance, yaw, pitch, roll, 2)
-    self.fov = 40.
-    '''
     self.focal_length_x = self._width / np.tan(np.radians(self.fov)/2.0)
     self.focal_length_y = self._height / np.tan(np.radians(self.fov)/2.0)
     aspect = self._width / self._height
@@ -454,17 +581,12 @@ def get_name_to_link(model_id):
 
 if __name__ == '__main__':
   import sys
-  import pcl
-  import json
   import torch
   torch.backends.cudnn.benchmark = True
-  from gdn.representation.euler import *
   from gdn.utils import *
-  from gdn.detector.edgeconv.backbone import EdgeDet
+  from gdn.baseline.pointnet import PointNetCls
+  from gdn.baseline.gpd import GPDClassifier
   from scipy.spatial.transform import Rotation
-
-  with open('./gripper_config.json', 'r') as fp:
-      config = json.load(fp)
 
   output_path = sys.argv[2]
   assert output_path.endswith(('.txt', '.out', '.log'))
@@ -472,12 +594,10 @@ if __name__ == '__main__':
 
   gripper_length = config['hand_height']
   deepen_hand = gripper_length * 1.2
-  model = EdgeDet(config, activation_layer=EulerActivation())
+  model = PointNetCls(num_points=input_points_num, input_chann=3, k=2, return_features=False)
   model = model.cuda()
   model = model.eval()
-  model.load_state_dict(torch.load(sys.argv[1])['base_model'])
-  representation = EulerRepresentation(config)
-  subsampling_util = val_collate_fn_setup(config)
+  model.load_state_dict(torch.load(sys.argv[1]))
 
   with open(output_path, 'w') as result_fp:
       p.connect(p.GUI)
@@ -496,7 +616,6 @@ if __name__ == '__main__':
       for uid in test._objectUids:
           obj_link_name_to_index.append((uid, get_name_to_link(uid)))
 
-      #first = True
       success_n = 0
       fail_n = 0
       fail_and_ik_fail = 0
@@ -509,30 +628,72 @@ if __name__ == '__main__':
               point_cloud, segmentation = test.getTargetGraspObservation()
               pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
               pc_no_arm = pc_flatten[segmentation.reshape(-1)>0,:] # (N, 3)
-              '''
-              if first:
-                  pc = pcl.PointCloud(pc_no_arm)
-                  pc.to_file(b'test.pcd')
-              '''
               pc_npy = pc_flatten[segmentation.reshape(-1)==start_obj_id,:] # (N, 3)
-              if pc_npy.shape[0]<input_points:
-                  pc_npy = np.append(pc_npy, pc_npy[np.random.choice(len(pc_npy), input_points-len(pc_npy), replace=True)], axis=0)
-              if pc_npy.shape[0]>input_points:
-                  pc_npy = pc_npy[np.random.choice(len(pc_npy), input_points, replace=False)]
-              trans_to_frame = (np.max(pc_npy, axis=0) + np.min(pc_npy, axis=0)) / 2.0
-              trans_to_frame[2] = np.min(pc_npy[:,2])
-              pc_npy -= trans_to_frame
+
               '''
-              if first:
-                  pc = pcl.PointCloud(pc_npy)
-                  pc.to_file(b'test_local.pcd')
-              first = False
+              processed_potential_grasp.append([tmp_grasp_bottom_center, tmp_grasp_normal,
+                                                tmp_major_pc, minor_pc,
+                                                tmp_grasp_bottom_center_modify])
               '''
-              pc_batch, indices, reverse_lookup_index, _ = subsampling_util([(pc_npy,None),])
-              pred = model(pc_batch.cuda(), [pt_idx.cuda() for pt_idx in indices]).cpu().numpy()
-              pred_poses = representation.retrive_from_feature_volume_batch(pc_npy[np.newaxis]+trans_to_frame[np.newaxis], reverse_lookup_index, pred, n_output=3000, threshold=-np.inf, nms=True)[0]
-              pred_poses = representation.filter_out_invalid_grasp_batch(pc_no_arm[np.newaxis], [pred_poses], n_collision=1)[0]
+
+              real_grasp, points, normals_cal = cal_grasp(pc_npy, test._cam_pos)
+              in_ind, in_ind_points = collect_pc(real_grasp, points)
+              score_value = []
+              assert len(real_grasp) == len(in_ind_points)
+              for ii in range(len(in_ind_points)):
+                  if in_ind_points[ii].shape[0] < minimal_points_send_to_point_net:
+                      score_value.append(0.0)
+                  else:
+                      if len(in_ind_points[ii]) >= input_points_num:
+                          points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),input_points_num, replace=False)]
+                      else:
+                          points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),input_points_num, replace=True)]
+                      out = model(torch.from_numpy(points_modify.T).float().unsqueeze(0).cuda())
+                      if isinstance(out, tuple):
+                          score = float(out[0][0,-1].cpu()) # (#batch,)
+                      else:
+                          score = float(out[0,-1].cpu()) # (#batch,)
+                      score_value.append(score)
+              ind = np.argsort(-np.asarray(score_value))
+              score_value = [ score_value[i] for i in ind  ]
+              real_grasp = [ real_grasp[i] for i in ind  ]
+              pred_poses = []
+              for score, grasp in zip(score_value, real_grasp):
+                  grasp_position_model = grasp[4]
+                  approach = grasp[1] # X (normal)
+                  binormal = grasp[2] # Y (major)
+                  minor_pc = grasp[3] # Z (minor)
+                  #print("d: %.6f"%np.linalg.norm(np.cross(approach, binormal) - minor_pc, ord=2))
+                  approach = approach / max(1e-10, np.linalg.norm(approach, ord=2))
+                  binormal = binormal / max(1e-10, np.linalg.norm(binormal, ord=2))
+                  minor_pc = np.cross(approach, binormal)
+                  if minor_pc[2]<0:
+                      binormal *= -1.
+                      minor_pc *= -1.
+                  center = grasp_position_model
+                  pose = np.c_[approach, binormal, minor_pc, center].astype(np.float32) # (3, 4)
+                  assert pose.shape == (3, 4)
+                  pred_poses.append((score, pose))
+
               print('Generated1 %d grasps'%len(pred_poses))
+
+              if False:
+                  pc_subset = np.copy(pc_no_arm)
+                  if len(pc_subset)>5000:
+                      pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
+                  mlab.clf()
+                  mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
+                  for n, pose_ in enumerate(pred_poses):
+                      pose = np.copy(pose_[1])
+                      gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'])
+                      gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
+
+                      mlab.plot3d([gripper_l[0], gripper_r[0]], [gripper_l[1], gripper_r[1]], [gripper_l[2], gripper_r[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)
+                      mlab.plot3d([gripper_l[0], gripper_l_t[0]], [gripper_l[1], gripper_l_t[1]], [gripper_l[2], gripper_l_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)
+                      mlab.plot3d([gripper_r[0], gripper_r_t[0]], [gripper_r[1], gripper_r_t[1]], [gripper_r[2], gripper_r_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)
+                  mlab.show()
+                  input()
+
               new_pred_poses = []
               for pose in pred_poses:
                   score    = pose[0]
@@ -540,7 +701,8 @@ if __name__ == '__main__':
                   trans    = pose[1][:3, 3]
                   approach = rotation[:3,0]
                   # if there is no suitable IK solution can be found. found next
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(65):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(60):
+                      # Set larger rotation range for GPD/PointnetGPD since it may not able to find a feasible grasp
                       continue
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
                       continue
@@ -556,10 +718,11 @@ if __name__ == '__main__':
                   new_pred_poses.append((score, new_pose))
               pred_poses = new_pred_poses
               print('Generated2 %d grasps'%len(pred_poses))
-              pc_subset = np.copy(pc_no_arm)
-              if len(pc_subset)>5000:
-                  pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
+
               if False:
+                  pc_subset = np.copy(pc_no_arm)
+                  if len(pc_subset)>5000:
+                      pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
                   mlab.clf()
                   mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
                   for n, pose_ in enumerate(pred_poses):
@@ -581,7 +744,7 @@ if __name__ == '__main__':
                   rotation = best_grasp[:3,:3]
                   trans_backward = best_grasp[:,3]
                   approach = best_grasp[:3,0]
-                  trans = trans_backward + approach*deepen_hand
+                  trans = trans_backward + approach * deepen_hand
                   pose = np.append(rotation, trans[...,np.newaxis], axis=1)
                   pose_backward = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
                   for link_name, link_id in tm_link_name_to_index.items():

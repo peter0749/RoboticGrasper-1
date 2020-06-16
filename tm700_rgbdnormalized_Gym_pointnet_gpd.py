@@ -24,12 +24,15 @@ from gpg_sampler import GpgGraspSamplerPcl
 
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
+    margin_in  = 0.002 # GPDs are easy to collide with objects. Add more thickness for gripper.
+    margin_out = 0.005 # GPDs are easy to collide with objects. Add more thickness for gripper.
+    config['thickness'] = config['thickness'] + margin_out
+    config['gripper_width'] = config['gripper_width'] - margin_in
 
-# Use same parameters as in training stage
-num_grasps = 6000
+num_grasps = 3000 # Same as GPD and GDN
 num_workers = 24
-max_num_samples = 150
-minimal_points_send_to_point_net = 20
+max_num_samples = 150 # Same as PointnetGPD
+minimal_points_send_to_point_net = 30 # need > 20 points to compute normal
 input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
 
@@ -578,12 +581,12 @@ if __name__ == '__main__':
   model.load_state_dict(torch.load(sys.argv[1]))
 
   with open(output_path, 'w') as result_fp:
-      #p.connect(p.GUI)
+      p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/tmp2/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -677,9 +680,35 @@ if __name__ == '__main__':
                   # Find more grasp for GPDs since it might not be able to find feasible grasps
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(85):
                       continue
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(85):
+                  d = np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1)))
+                  # FIXME: In real-world, grasps inside cups and mugs are feasible. But not in simulator. Filter out this kind of grasps.
+                  if d > np.radians(85) or d < np.radians(15):
                       continue
+                  tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
+
+                  # Sanity test
+                  gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width']+config['thickness']*2,
+                                                                         config['hand_height'], tmp_pose,
+                                                                         config['thickness_side'], backward=0.20)[1:]
+                  gripper_inner1, gripper_inner2 = generate_gripper_edge(config['gripper_width'], config['hand_height'],
+                                                                         tmp_pose, config['thickness_side'])[1:]
+                  outer_pts = crop_index(pc_no_arm, gripper_outer1, gripper_outer2)
+                  if len(outer_pts) == 0: # No points between fingers
+                      continue
+                  inner_pts = crop_index(pts, gripper_inner1, gripper_inner2, search_idx=outer_pts)
+                  if len(outer_pts) - len(np.intersect1d(inner_pts, outer_pts)) > 0: # has collision
+                      continue
+
                   trans_backward = trans - approach * deepen_hand
+
+                  tmp_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
+                  gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'],
+                                                                                             config['hand_height'],
+                                                                                             tmp_pose,
+                                                                                             config['thickness_side'])
+                  if gripper_l_t[2]<0.01 or gripper_r_t[2]<0.01: # ready pose will collide with table
+                      continue
+
                   new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
                   new_pred_poses.append((score, new_pose))
               pred_poses = new_pred_poses
@@ -731,8 +760,8 @@ if __name__ == '__main__':
                   p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['gripper_link'], -1, 1)
                   p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_r_link'], -1, 1)
                   p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_l_link'], -1, 1)
-                  # Deepen gripper hand
-                  for d in np.linspace(0, 1, 100):
+                  # Deepen gripper hand. May return infeasible pose?
+                  for d in np.linspace(0, 1, 100): # linear trajectory
                       info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=100, min_iteration=1)[-1]
                   if not info['planning']:
                       print("Inverse Kinematics failed.")
@@ -741,7 +770,7 @@ if __name__ == '__main__':
                   # Test if we can lift the object
                   p.setGravity(0, 0, -10)
                   pose[:3,3] += np.array([0, 0, 0.25])
-                  test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=1000, min_iteration=5)
+                  test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=5000, min_iteration=5)
                   for _ in range(1000):
                       p.stepSimulation()
                   if not test._current_objList[0] in obj_success_rate:

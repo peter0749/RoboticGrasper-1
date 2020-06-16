@@ -436,7 +436,19 @@ class GpgGraspSamplerPcl(GraspSampler):
                                                                 tmp_major_pc)[1:]
                             min_finger_end = hand_points_[:, 2].min()
                             min_finger_end_pos_ind = np.where(hand_points_[:, 2] == min_finger_end)[0][0]
-                            tmp_grasp_bottom_center_modify = tmp_grasp_bottom_center
+
+                            # Lots of tricks: This section remove the grippers collided with table
+                            safety_dis_above_table = 0.01
+                            if min_finger_end < safety_dis_above_table:
+                                min_finger_pos = hand_points_[min_finger_end_pos_ind]  # the lowest point in a gripper
+                                x = -min_finger_pos[2]*tmp_grasp_normal[0]/tmp_grasp_normal[2]+min_finger_pos[0]
+                                y = -min_finger_pos[2]*tmp_grasp_normal[1]/tmp_grasp_normal[2]+min_finger_pos[1]
+                                p_table = np.array([x, y, 0])  # the point that on the table
+                                dis_go_back = np.linalg.norm([min_finger_pos, p_table]) + safety_dis_above_table
+                                tmp_grasp_bottom_center_modify = tmp_grasp_bottom_center-tmp_grasp_normal*dis_go_back
+                            else:
+                                # if the grasp is not collide with the table, do not change the grasp
+                                tmp_grasp_bottom_center_modify = tmp_grasp_bottom_center
 
                             # final check
                             _, open_points = self.check_collision_square(tmp_grasp_bottom_center_modify,

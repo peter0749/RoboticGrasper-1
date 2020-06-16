@@ -16,7 +16,7 @@ from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
-from mayavi import mlab
+#from mayavi import mlab
 import pcl
 import multiprocessing as mp
 from gpg_sampler import GpgGraspSamplerPcl
@@ -26,8 +26,8 @@ with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
 
 # Use same parameters as in training stage
-num_grasps = 6000
-num_workers = 10
+num_grasps = 3000
+num_workers = 24
 max_num_samples = 150
 minimal_points_send_to_point_net = 20
 input_points_num = 1000
@@ -568,21 +568,22 @@ if __name__ == '__main__':
   output_path = sys.argv[2]
   assert output_path.endswith(('.txt', '.out', '.log'))
   total_n = int(sys.argv[3])
+  cls_k = int(sys.argv[4])
 
   gripper_length = config['hand_height']
   deepen_hand = gripper_length * 1.2
-  model = PointNetCls(num_points=input_points_num, input_chann=3, k=2, return_features=False)
+  model = PointNetCls(num_points=input_points_num, input_chann=3, k=cls_k, return_features=False)
   model = model.cuda()
   model = model.eval()
   model.load_state_dict(torch.load(sys.argv[1]))
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)

@@ -41,11 +41,15 @@ from scipy.spatial.transform import Rotation as sciRotation
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+'''
 try:
     from mayavi import mlab
 except ImportError:
     mlab = None
     logger.warning('Do not have mayavi installed, please set the vis to False')
+'''
+
+mlab = None
 
 class GraspSampler:
     """ Base class for various methods to sample a number of grasps on an object.
@@ -273,7 +277,7 @@ class GpgGraspSamplerPcl(GraspSampler):
         """
         params = {
             'num_dy': 2,   # number
-            'dtheta': 24,  # unit degree
+            'dtheta': 10,  # unit degree
             'range_dtheta': 90,
             'r_ball': 0.01,
             'approach_step': 0.005,

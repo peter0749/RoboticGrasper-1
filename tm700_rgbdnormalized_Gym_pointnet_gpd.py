@@ -16,7 +16,7 @@ from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
-from mayavi import mlab
+#from mayavi import mlab
 import pcl
 import multiprocessing as mp
 from gpg_sampler import GpgGraspSamplerPcl
@@ -46,7 +46,7 @@ def cal_grasp(points_, cam_pos_):
     normals = norm.compute()
     surface_normal = normals.to_array()
     surface_normal = surface_normal[:, 0:3]
-    vector_p2cam = cam_pos_ - points_
+    vector_p2cam = points_ - cam_pos_ #cam_pos_ - points_
     vector_p2cam = vector_p2cam / np.linalg.norm(vector_p2cam, axis=1).reshape(-1, 1)
     tmp = np.dot(vector_p2cam, surface_normal.T).diagonal()
     angel = np.arccos(np.clip(tmp, -1.0, 1.0))
@@ -582,7 +582,7 @@ if __name__ == '__main__':
   model.load_state_dict(torch.load(sys.argv[1]))
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       ts = None #1/240.
@@ -654,7 +654,7 @@ if __name__ == '__main__':
 
               print('Generated1 %d grasps'%len(pred_poses))
 
-              if True:
+              if False:
                   pc_subset = np.copy(pc_no_arm)
                   if len(pc_subset)>5000:
                       pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
@@ -715,7 +715,7 @@ if __name__ == '__main__':
               pred_poses = new_pred_poses
               print('Generated2 %d grasps'%len(pred_poses))
 
-              if True:
+              if False:
                   pc_subset = np.copy(pc_no_arm)
                   if len(pc_subset)>5000:
                       pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]

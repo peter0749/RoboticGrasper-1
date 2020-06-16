@@ -542,6 +542,9 @@ if __name__ == '__main__':
                   # if there is no suitable IK solution can be found. found next
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
                       continue
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(90):
+                      continue
+                  '''
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
                       continue
                   while True: # check if gripper collide with table
@@ -551,7 +554,34 @@ if __name__ == '__main__':
                       if gripper_l_t[2]>0.001 and gripper_r_t[2]>0.001:
                           break
                       trans = trans - approach * 0.001
+                  '''
+                  tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
+
+                  # Sanity test
+                  gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width']+config['thickness']*2,
+                                                                         config['hand_height'], tmp_pose,
+                                                                         config['thickness_side'], backward=deepen_hand)[1:]
+                  gripper_inner1, gripper_inner2 = generate_gripper_edge(config['gripper_width'], config['hand_height'],
+                                                                         tmp_pose, config['thickness_side'])[1:]
+                  outer_pts = crop_index(pc_no_arm, gripper_outer1, gripper_outer2)
+                  if len(outer_pts) == 0: # No points between fingers
+                      continue
+                  inner_pts = crop_index(pc_no_arm, gripper_inner1, gripper_inner2, search_idx=outer_pts)
+                  if len(outer_pts) - len(np.intersect1d(inner_pts, outer_pts)) > 0: # has collision
+                      continue
+
                   trans_backward = trans - approach * deepen_hand
+
+                  tmp_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
+                  gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'],
+                                                                                             config['hand_height'],
+                                                                                             tmp_pose,
+                                                                                             config['thickness_side'])
+                  gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
+                  if gripper_l_t[2] < 0.01 or gripper_r_t[2] < 0.01 or \
+                     gripper_l[2]   < 0.01 or gripper_r[2]   < 0.01: # ready pose will collide with table
+                      continue
+
                   new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
                   new_pred_poses.append((score, new_pose))
               pred_poses = new_pred_poses

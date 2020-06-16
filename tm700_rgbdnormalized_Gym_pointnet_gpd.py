@@ -674,17 +674,11 @@ if __name__ == '__main__':
                   trans    = pose[1][:3, 3]
                   approach = rotation[:3,0]
                   # if there is no suitable IK solution can be found. found next
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(65):
+                  # Find more grasp for GPDs since it might not be able to find feasible grasps
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(85):
                       continue
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(85):
                       continue
-                  while True: # check if gripper collide with table
-                      tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
-                      gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], tmp_pose, config['thickness_side'])
-                      gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-                      if gripper_l_t[2]>0.001 and gripper_r_t[2]>0.001:
-                          break
-                      trans = trans - approach * 0.001
                   trans_backward = trans - approach * deepen_hand
                   new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
                   new_pred_poses.append((score, new_pose))

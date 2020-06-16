@@ -33,7 +33,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
                maxSteps=11,
                dv=0.06,
                removeHeightHack=False,
-               blockRandom=0.1,
+               blockRandom=0.05,
                cameraRandom=0,
                width=64,
                height=64,
@@ -125,7 +125,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     yaw = -75
     roll = 120
     self._view_matrix = p.computeViewMatrixFromYawPitchRoll(look, distance, yaw, pitch, roll, 2)
-    self.fov = 35.
+    self.fov = 30.
     '''
     look = [0.90, -0.28, 0.43]
     distance = 0.15
@@ -486,7 +486,7 @@ if __name__ == '__main__':
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/home/peter/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -542,7 +542,7 @@ if __name__ == '__main__':
                   # if there is no suitable IK solution can be found. found next
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
                       continue
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(90):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
                       continue
                   '''
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
@@ -578,8 +578,8 @@ if __name__ == '__main__':
                                                                                              tmp_pose,
                                                                                              config['thickness_side'])
                   gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-                  if gripper_l_t[2] < 0.01 or gripper_r_t[2] < 0.01 or \
-                     gripper_l[2]   < 0.01 or gripper_r[2]   < 0.01: # ready pose will collide with table
+                  if gripper_l_t[2] < 0.003 or gripper_r_t[2] < 0.003 or \
+                     gripper_l[2]   < 0.003 or gripper_r[2]   < 0.003: # ready pose will collide with table
                       continue
 
                   new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
@@ -640,7 +640,7 @@ if __name__ == '__main__':
                   test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=500, min_iteration=5)
                   # Test if we can lift the object
                   p.setGravity(0, 0, -10)
-                  pose[:3,3] += np.array([0, 0, 0.25])
+                  pose[:3,3] += np.array([0, 0, 0.30])
                   test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=1000, min_iteration=5)
                   for _ in range(1000):
                       p.stepSimulation()

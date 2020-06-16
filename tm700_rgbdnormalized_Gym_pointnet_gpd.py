@@ -16,7 +16,7 @@ from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
-#from mayavi import mlab
+from mayavi import mlab
 import pcl
 import multiprocessing as mp
 from gpg_sampler import GpgGraspSamplerPcl
@@ -32,8 +32,8 @@ with open('./gripper_config.json', 'r') as fp:
 
 num_grasps = 3000 # Same as GPD and GDN
 num_workers = 24
-max_num_samples = 150 # Same as PointnetGPD
-minimal_points_send_to_point_net = 21 # need > 20 points to compute normal
+max_num_samples = 50 # Same as PointnetGPD
+minimal_points_send_to_point_net = 150 # need > 20 points to compute normal
 input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
 
@@ -150,7 +150,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
                maxSteps=11,
                dv=0.06,
                removeHeightHack=False,
-               blockRandom=0.1,
+               blockRandom=0.05,
                cameraRandom=0,
                width=64,
                height=64,
@@ -242,7 +242,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     yaw = -75
     roll = 120
     self._view_matrix = p.computeViewMatrixFromYawPitchRoll(look, distance, yaw, pitch, roll, 2)
-    self.fov = 35.
+    self.fov = 30.
     self.focal_length_x = self._width / np.tan(np.radians(self.fov)/2.0)
     self.focal_length_y = self._height / np.tan(np.radians(self.fov)/2.0)
     aspect = self._width / self._height
@@ -582,12 +582,12 @@ if __name__ == '__main__':
   model.load_state_dict(torch.load(sys.argv[1]))
 
   with open(output_path, 'w') as result_fp:
-      #p.connect(p.GUI)
+      p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/home/peter/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -654,23 +654,6 @@ if __name__ == '__main__':
 
               print('Generated1 %d grasps'%len(pred_poses))
 
-              if False:
-                  pc_subset = np.copy(pc_no_arm)
-                  if len(pc_subset)>5000:
-                      pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
-                  mlab.clf()
-                  mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
-                  for i in range(min(30, len(pred_poses))):
-                      pose = np.copy(pred_poses[i][1]).astype(np.float32)
-                      gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'])
-                      gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-
-                      mlab.plot3d([gripper_l[0], gripper_r[0]], [gripper_l[1], gripper_r[1]], [gripper_l[2], gripper_r[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
-                      mlab.plot3d([gripper_l[0], gripper_l_t[0]], [gripper_l[1], gripper_l_t[1]], [gripper_l[2], gripper_l_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
-                      mlab.plot3d([gripper_r[0], gripper_r_t[0]], [gripper_r[1], gripper_r_t[1]], [gripper_r[2], gripper_r_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
-                  mlab.show()
-                  input()
-
               new_pred_poses = []
               for pose in pred_poses:
                   score    = pose[0]
@@ -679,9 +662,9 @@ if __name__ == '__main__':
                   approach = rotation[:3,0]
                   # if there is no suitable IK solution can be found. found next
                   # Find more grasp for GPDs since it might not be able to find feasible grasps
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(70):
                       continue
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(90):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(89.9):
                       continue
                   tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
 
@@ -706,8 +689,8 @@ if __name__ == '__main__':
                                                                                              tmp_pose,
                                                                                              config['thickness_side'])
                   gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-                  if gripper_l_t[2] < 0.01 or gripper_r_t[2] < 0.01 or \
-                     gripper_l[2]   < 0.01 or gripper_r[2]   < 0.01: # ready pose will collide with table
+                  if gripper_l_t[2] < 0.003 or gripper_r_t[2] < 0.003 or \
+                     gripper_l[2]   < 0.003 or gripper_r[2]   < 0.003: # ready pose will collide with table
                       continue
 
                   new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
@@ -715,23 +698,6 @@ if __name__ == '__main__':
               pred_poses = new_pred_poses
               print('Generated2 %d grasps'%len(pred_poses))
 
-              if False:
-                  pc_subset = np.copy(pc_no_arm)
-                  if len(pc_subset)>5000:
-                      pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
-                  mlab.clf()
-                  mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
-                  for i in range(min(30, len(pred_poses))):
-                      pose = np.copy(pred_poses[i][1]).astype(np.float32)
-                      pose[:,3] += pose[:,0] * deepen_hand
-                      gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'])
-                      gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-
-                      mlab.plot3d([gripper_l[0], gripper_r[0]], [gripper_l[1], gripper_r[1]], [gripper_l[2], gripper_r[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
-                      mlab.plot3d([gripper_l[0], gripper_l_t[0]], [gripper_l[1], gripper_l_t[1]], [gripper_l[2], gripper_l_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
-                      mlab.plot3d([gripper_r[0], gripper_r_t[0]], [gripper_r[1], gripper_r_t[1]], [gripper_r[2], gripper_r_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
-                  mlab.show()
-                  input()
               if len(pred_poses)==0:
                   print("No suitable grasp found.")
                   no_solution_fail += 1
@@ -770,7 +736,7 @@ if __name__ == '__main__':
                   test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=500, min_iteration=5)
                   # Test if we can lift the object
                   p.setGravity(0, 0, -10)
-                  pose[:3,3] += np.array([0, 0, 0.25])
+                  pose[:3,3] += np.array([0, 0, 0.30])
                   test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=5000, min_iteration=5)
                   for _ in range(1000):
                       p.stepSimulation()
@@ -788,6 +754,23 @@ if __name__ == '__main__':
                       fail_n += 1
                       if not info['planning']:
                           fail_and_ik_fail += 1
+                      if False:
+                          pc_subset = np.copy(pc_no_arm)
+                          if len(pc_subset)>5000:
+                              pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
+                          mlab.clf()
+                          mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
+                          for i in range(min(30, len(pred_poses))):
+                              pose = np.copy(pred_poses[i][1]).astype(np.float32)
+                              pose[:,3] += pose[:,0] * deepen_hand
+                              gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'])
+                              gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
+
+                              mlab.plot3d([gripper_l[0], gripper_r[0]], [gripper_l[1], gripper_r[1]], [gripper_l[2], gripper_r[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
+                              mlab.plot3d([gripper_l[0], gripper_l_t[0]], [gripper_l[1], gripper_l_t[1]], [gripper_l[2], gripper_l_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
+                              mlab.plot3d([gripper_r[0], gripper_r_t[0]], [gripper_r[1], gripper_r_t[1]], [gripper_r[2], gripper_r_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
+                          mlab.show()
+                          input()
                   obj_success_rate[test._current_objList[0]] = (obj_success_n, obj_iter_n)
               result_fp.write("Iteration %d:\n"%(ite+1))
               for obj_name in sorted(list(obj_success_rate)):

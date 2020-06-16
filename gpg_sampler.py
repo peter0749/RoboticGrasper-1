@@ -276,11 +276,12 @@ class GpgGraspSamplerPcl(GraspSampler):
            list of generated grasps
         """
         params = {
-            'num_dy': 2,   # number
-            'dtheta': 10,  # unit degree
-            'range_dtheta': 45,
+            'num_dy': 4,   # number
+            'dy_step': 0.005,
+            'dtheta': 3,  # unit degree
+            'range_dtheta': 30,
             'r_ball': 0.02,
-            'approach_step': 0.005,
+            'approach_step': 0.002,
         }
 
         # get all surface points
@@ -320,8 +321,6 @@ class GpgGraspSamplerPcl(GraspSampler):
             r_ball = params['r_ball']  # FIXME: for some relative small obj, we need to use pre-defined radius
 
             M = np.zeros((3, 3))
-
-            # neighbor = selected_surface + 2 * (np.random.rand(3) - 0.5) * r_ball
 
             selected_surface_pc = pcl.PointCloud(selected_surface.reshape(1, 3))
             kd = point_cloud.make_kdtree_flann()
@@ -372,9 +371,9 @@ class GpgGraspSamplerPcl(GraspSampler):
                                         params['dtheta'])
             np.random.shuffle(rotation_search_space)
             if params['num_dy']>0:
-                translation_search_space = np.arange(-params['num_dy'] * fw,
-                                            (params['num_dy'] + 1) * fw,
-                                            fw)
+                translation_search_space = np.arange(-params['num_dy'] * params['dy_step'],
+                                            (params['num_dy'] + 1) * params['dy_step'],
+                                            params['dy_step'])
             else:
                 translation_search_space = np.array([0,], dtype=np.float32)
             np.random.shuffle(translation_search_space)
@@ -428,8 +427,7 @@ class GpgGraspSamplerPcl(GraspSampler):
 
                         if is_collide:
                             # if collide, go back one step to get a collision free hand position
-                            tmp_grasp_bottom_center += (-tmp_grasp_normal) * params['approach_step'] * 3
-                            # minus 3 means we want the grasp go back a little bitte more. Hmm...
+                            tmp_grasp_bottom_center += (-tmp_grasp_normal) * params['approach_step'] * 1.001
 
                             # here we check if the gripper collide with the table.
                             hand_points_ = self.get_hand_points(tmp_grasp_bottom_center,
@@ -439,7 +437,7 @@ class GpgGraspSamplerPcl(GraspSampler):
                             min_finger_end_pos_ind = np.where(hand_points_[:, 2] == min_finger_end)[0][0]
 
                             # Lots of tricks: This section remove the grippers collided with table
-                            safety_dis_above_table = 0.01
+                            safety_dis_above_table = 0.003
                             if min_finger_end < safety_dis_above_table:
                                 min_finger_pos = hand_points_[min_finger_end_pos_ind]  # the lowest point in a gripper
                                 x = -min_finger_pos[2]*tmp_grasp_normal[0]/tmp_grasp_normal[2]+min_finger_pos[0]

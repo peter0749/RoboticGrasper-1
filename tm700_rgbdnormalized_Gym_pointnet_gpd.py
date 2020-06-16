@@ -695,7 +695,7 @@ if __name__ == '__main__':
                   outer_pts = crop_index(pc_no_arm, gripper_outer1, gripper_outer2)
                   if len(outer_pts) == 0: # No points between fingers
                       continue
-                  inner_pts = crop_index(pts, gripper_inner1, gripper_inner2, search_idx=outer_pts)
+                  inner_pts = crop_index(pc_no_arm, gripper_inner1, gripper_inner2, search_idx=outer_pts)
                   if len(outer_pts) - len(np.intersect1d(inner_pts, outer_pts)) > 0: # has collision
                       continue
 

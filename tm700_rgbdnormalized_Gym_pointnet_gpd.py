@@ -623,10 +623,11 @@ if __name__ == '__main__':
                       try:
                           out = model(torch.from_numpy(points_modify.T).float().unsqueeze(0).cuda())
                           if isinstance(out, tuple):
-                              score = float(out[0][0,-1].cpu()) # (#batch,)
+                              out = torch.nn.functional.softmax(out[0], 1)
                           else:
-                              score = float(out[0,-1].cpu()) # (#batch,)
-                      except TypeError:
+                              out = torch.nn.functional.softmax(out, 1)
+                          score = float(out[0,-1].cpu()) # (#batch,)
+                      except TypeError: # FIXME: I don't know why some times model will return complex128...
                           score = -np.inf
                       score_value.append(score)
               ind = np.argsort(-np.asarray(score_value))

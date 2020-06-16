@@ -706,6 +706,7 @@ if __name__ == '__main__':
                                                                                              config['hand_height'],
                                                                                              tmp_pose,
                                                                                              config['thickness_side'])
+                  gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
                   if gripper_l_t[2]<0.01 or gripper_r_t[2]<0.01: # ready pose will collide with table
                       continue
 

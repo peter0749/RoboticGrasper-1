@@ -278,8 +278,8 @@ class GpgGraspSamplerPcl(GraspSampler):
         params = {
             'num_dy': 2,   # number
             'dtheta': 10,  # unit degree
-            'range_dtheta': 90,
-            'r_ball': 0.01,
+            'range_dtheta': 45,
+            'r_ball': 0.02,
             'approach_step': 0.005,
         }
 
@@ -371,12 +371,13 @@ class GpgGraspSamplerPcl(GraspSampler):
                                         params['range_dtheta'] + 1,
                                         params['dtheta'])
             np.random.shuffle(rotation_search_space)
-            rotation_search_space = np.append(0, rotation_search_space) # add origin
-            translation_search_space = np.arange(-params['num_dy'] * fw,
-                                        (params['num_dy'] + 1) * fw,
-                                        fw)
+            if params['num_dy']>0:
+                translation_search_space = np.arange(-params['num_dy'] * fw,
+                                            (params['num_dy'] + 1) * fw,
+                                            fw)
+            else:
+                translation_search_space = np.array([0,], dtype=np.float32)
             np.random.shuffle(translation_search_space)
-            translation_search_space = np.append(0, translation_search_space) # add origin
             for dtheta in rotation_search_space:
                 dy_potentials = []
                 rotation = sciRotation.from_quat([minor_pc[0], minor_pc[1], minor_pc[2], dtheta / 180 * np.pi]).as_matrix()

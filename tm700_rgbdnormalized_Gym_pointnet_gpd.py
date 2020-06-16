@@ -16,7 +16,7 @@ from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
-#from mayavi import mlab
+from mayavi import mlab
 import pcl
 import multiprocessing as mp
 from gpg_sampler import GpgGraspSamplerPcl
@@ -24,10 +24,14 @@ from gpg_sampler import GpgGraspSamplerPcl
 
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
-    config['gripper_width'] -= 0.005
+    # GPDs are easy to collide
+    shrink_width = 0.005
+    expand_thick = 0.002
+    config['gripper_width'] -= shrink_width
+    config['thickness'] += shrink_width*0.5 + expand_thick
 
 num_grasps = 3000 # Same as GPD and GDN
-num_workers = 10
+num_workers = 24
 max_num_samples = 150 # Same as PointnetGPD
 minimal_points_send_to_point_net = 21 # need > 20 points to compute normal
 input_points_num = 1000
@@ -650,7 +654,7 @@ if __name__ == '__main__':
 
               print('Generated1 %d grasps'%len(pred_poses))
 
-              if False:
+              if True:
                   pc_subset = np.copy(pc_no_arm)
                   if len(pc_subset)>5000:
                       pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
@@ -677,8 +681,6 @@ if __name__ == '__main__':
                   # Find more grasp for GPDs since it might not be able to find feasible grasps
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
                       continue
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
-                      continue
                   tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
 
                   # Sanity test
@@ -702,7 +704,8 @@ if __name__ == '__main__':
                                                                                              tmp_pose,
                                                                                              config['thickness_side'])
                   gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-                  if gripper_l_t[2]<0.01 or gripper_r_t[2]<0.01: # ready pose will collide with table
+                  if gripper_l_t[2] < 0.01 or gripper_r_t[2] < 0.01 or \
+                     gripper_l[2]   < 0.01 or gripper_r[2]   < 0.01: # ready pose will collide with table
                       continue
 
                   new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
@@ -710,7 +713,7 @@ if __name__ == '__main__':
               pred_poses = new_pred_poses
               print('Generated2 %d grasps'%len(pred_poses))
 
-              if False:
+              if True:
                   pc_subset = np.copy(pc_no_arm)
                   if len(pc_subset)>5000:
                       pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]

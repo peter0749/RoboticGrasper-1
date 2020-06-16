@@ -211,16 +211,6 @@ class GraspSampler:
         else:
             has_p = True
 
-        if vis:
-            print("points_in_area", way, len(points_in_area))
-            mlab.clf()
-            # self.show_one_point(np.array([0, 0, 0]))
-            self.show_grasp_3d(p)
-            self.show_points(points_g)
-            if len(points_in_area) != 0:
-                self.show_points(points_g[points_in_area], color='r')
-            mlab.show()
-        # print("points_in_area", way, len(points_in_area))
         return has_p, points_in_area
 
     def show_all_grasps(self, all_points, grasps_for_show):
@@ -457,12 +447,12 @@ class GpgGraspSamplerPcl(GraspSampler):
                                     processed_potential_grasp.append([tmp_grasp_bottom_center, tmp_grasp_normal,
                                                                       tmp_major_pc, minor_pc,
                                                                       tmp_grasp_bottom_center_modify])
-                                    logger.info("processed_potential_grasp %d / %d", len(processed_potential_grasp), num_grasps)
-                                    print("The grasps number got by modified GPG: %d / %d"%(len(processed_potential_grasp), num_grasps))
                                     break
                 if len(processed_potential_grasp) >= num_grasps or sampled_surface_amount >= max_num_samples:
                     return processed_potential_grasp
             sampled_surface_amount += 1
+            logger.info("processed_potential_grasp %d / %d", len(processed_potential_grasp), num_grasps)
             logger.info("current amount of sampled surface %d / %d", sampled_surface_amount, max_num_samples)
+            print("The grasps number got by modified GPG: %d / %d"%(len(processed_potential_grasp), num_grasps))
             print("current amount of sampled surface: %d / %d"%(sampled_surface_amount, max_num_samples))
         return processed_potential_graspclass

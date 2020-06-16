@@ -16,7 +16,7 @@ from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
-from mayavi import mlab
+#from mayavi import mlab
 import pcl
 import multiprocessing as mp
 from gpg_sampler import GpgGraspSamplerPcl
@@ -582,12 +582,12 @@ if __name__ == '__main__':
   model.load_state_dict(torch.load(sys.argv[1]))
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -754,7 +754,7 @@ if __name__ == '__main__':
                       fail_n += 1
                       if not info['planning']:
                           fail_and_ik_fail += 1
-                      if True:
+                      if False:
                           pc_subset = np.copy(pc_no_arm)
                           if len(pc_subset)>5000:
                               pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]

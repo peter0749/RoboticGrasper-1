@@ -26,7 +26,7 @@ with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
 
 # Use same parameters as in training stage
-num_grasps = 3000
+num_grasps = 6000
 num_workers = 24
 max_num_samples = 150
 minimal_points_send_to_point_net = 20

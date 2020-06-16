@@ -681,6 +681,8 @@ if __name__ == '__main__':
                   # Find more grasp for GPDs since it might not be able to find feasible grasps
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
                       continue
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(90):
+                      continue
                   tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
 
                   # Sanity test

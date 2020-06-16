@@ -27,6 +27,7 @@ We Used it for benchmark purpose only.
 """
 
 from abc import ABCMeta, abstractmethod
+import itertools
 import logging
 import numpy as np
 # import os, IPython, sys
@@ -361,10 +362,6 @@ class GpgGraspSamplerPcl(GraspSampler):
             new_normal = -new_normal
             major_pc = -major_pc
 
-            # some magic number referred from origin paper
-            potential_grasp = []
-
-
             # Search rotation long z-axis (yaw)
             rotation_search_space = np.arange(-params['range_dtheta'],
                                         params['range_dtheta'] + 1,
@@ -377,106 +374,95 @@ class GpgGraspSamplerPcl(GraspSampler):
             else:
                 translation_search_space = np.array([0,], dtype=np.float32)
             np.random.shuffle(translation_search_space)
-            for dtheta in rotation_search_space:
-                dy_potentials = []
+            rs_ts = list(itertools.product(rotation_search_space, translation_search_space))
+            random.shuffle(rs_ts)
+
+            approach_dist = hd  # use gripper depth
+            num_approaches = int(approach_dist / params['approach_step'])
+
+            for dtheta, dy in rs_ts:
                 rotation = sciRotation.from_quat([minor_pc[0], minor_pc[1], minor_pc[2], dtheta / 180 * np.pi]).as_matrix()
                 # compute centers and axes
                 tmp_major_pc = np.dot(rotation, major_pc) # Y
                 tmp_grasp_normal = np.dot(rotation, new_normal) # X
                 tmp_minor_pc = minor_pc # Z
-                for dy in translation_search_space:
-                    tmp_grasp_bottom_center = selected_surface + tmp_major_pc * dy
-                    # go back a bite after rotation dtheta and translation dy!
-                    tmp_grasp_bottom_center = self.config['hand_height'] * (
-                            -tmp_grasp_normal) + tmp_grasp_bottom_center
 
-                    open_points, _ = self.check_collision_square(tmp_grasp_bottom_center, tmp_grasp_normal,
+                tmp_grasp_bottom_center = selected_surface + tmp_major_pc * dy
+                # go back a bite after rotation dtheta and translation dy!
+                tmp_grasp_bottom_center = self.config['hand_height'] * (
+                        -tmp_grasp_normal) + tmp_grasp_bottom_center
+
+                open_points, _ = self.check_collision_square(tmp_grasp_bottom_center, tmp_grasp_normal,
+                                                             tmp_major_pc, tmp_minor_pc, all_points,
+                                                             hand_points, "p_open")
+                bottom_points, _ = self.check_collision_square(tmp_grasp_bottom_center, tmp_grasp_normal,
+                                                               tmp_major_pc, tmp_minor_pc, all_points,
+                                                               hand_points,
+                                                               "p_bottom")
+                if open_points is True and bottom_points is False:
+
+                    left_points, _ = self.check_collision_square(tmp_grasp_bottom_center, tmp_grasp_normal,
                                                                  tmp_major_pc, tmp_minor_pc, all_points,
-                                                                 hand_points, "p_open")
-                    bottom_points, _ = self.check_collision_square(tmp_grasp_bottom_center, tmp_grasp_normal,
-                                                                   tmp_major_pc, tmp_minor_pc, all_points,
-                                                                   hand_points,
-                                                                   "p_bottom")
-                    if open_points is True and bottom_points is False:
+                                                                 hand_points,
+                                                                 "p_left")
+                    right_points, _ = self.check_collision_square(tmp_grasp_bottom_center, tmp_grasp_normal,
+                                                                  tmp_major_pc, tmp_minor_pc, all_points,
+                                                                  hand_points,
+                                                                  "p_right")
 
-                        left_points, _ = self.check_collision_square(tmp_grasp_bottom_center, tmp_grasp_normal,
-                                                                     tmp_major_pc, tmp_minor_pc, all_points,
-                                                                     hand_points,
-                                                                     "p_left")
-                        right_points, _ = self.check_collision_square(tmp_grasp_bottom_center, tmp_grasp_normal,
-                                                                      tmp_major_pc, tmp_minor_pc, all_points,
-                                                                      hand_points,
-                                                                      "p_right")
+                    if left_points is False and right_points is False:
+                        ptg = [tmp_grasp_bottom_center, tmp_grasp_normal, tmp_major_pc, tmp_minor_pc]
 
-                        if left_points is False and right_points is False:
-                            dy_potentials.append([tmp_grasp_bottom_center, tmp_grasp_normal,
-                                                  tmp_major_pc, tmp_minor_pc])
+                        for approach_s in range(num_approaches):
+                            tmp_grasp_bottom_center = ptg[1] * approach_s * params['approach_step'] + ptg[0]
+                            tmp_grasp_normal = ptg[1]
+                            tmp_major_pc = ptg[2]
+                            minor_pc = ptg[3]
+                            is_collide = self.check_collide(tmp_grasp_bottom_center, tmp_grasp_normal,
+                                                            tmp_major_pc, minor_pc, point_cloud, hand_points)
 
-                potential_grasp = dy_potentials
-                approach_dist = hd  # use gripper depth
-                num_approaches = int(approach_dist / params['approach_step'])
+                            if is_collide:
+                                # if collide, go back one step to get a collision free hand position
+                                tmp_grasp_bottom_center += (-tmp_grasp_normal) * params['approach_step'] * 1.001
 
-                for ptg in potential_grasp:
-                    for approach_s in range(num_approaches):
-                        tmp_grasp_bottom_center = ptg[1] * approach_s * params['approach_step'] + ptg[0]
-                        tmp_grasp_normal = ptg[1]
-                        tmp_major_pc = ptg[2]
-                        minor_pc = ptg[3]
-                        is_collide = self.check_collide(tmp_grasp_bottom_center, tmp_grasp_normal,
-                                                        tmp_major_pc, minor_pc, point_cloud, hand_points)
+                                # here we check if the gripper collide with the table.
+                                hand_points_ = self.get_hand_points(tmp_grasp_bottom_center,
+                                                                    tmp_grasp_normal,
+                                                                    tmp_major_pc)[1:]
+                                min_finger_end = hand_points_[:, 2].min()
+                                min_finger_end_pos_ind = np.where(hand_points_[:, 2] == min_finger_end)[0][0]
 
-                        if is_collide:
-                            # if collide, go back one step to get a collision free hand position
-                            tmp_grasp_bottom_center += (-tmp_grasp_normal) * params['approach_step'] * 1.001
+                                # Lots of tricks: This section remove the grippers collided with table
+                                safety_dis_above_table = 0.003
+                                if min_finger_end < safety_dis_above_table:
+                                    min_finger_pos = hand_points_[min_finger_end_pos_ind]  # the lowest point in a gripper
+                                    x = -min_finger_pos[2]*tmp_grasp_normal[0]/tmp_grasp_normal[2]+min_finger_pos[0]
+                                    y = -min_finger_pos[2]*tmp_grasp_normal[1]/tmp_grasp_normal[2]+min_finger_pos[1]
+                                    p_table = np.array([x, y, 0])  # the point that on the table
+                                    dis_go_back = np.linalg.norm([min_finger_pos, p_table]) + safety_dis_above_table
+                                    tmp_grasp_bottom_center_modify = tmp_grasp_bottom_center-tmp_grasp_normal*dis_go_back
+                                else:
+                                    # if the grasp is not collide with the table, do not change the grasp
+                                    tmp_grasp_bottom_center_modify = tmp_grasp_bottom_center
 
-                            # here we check if the gripper collide with the table.
-                            hand_points_ = self.get_hand_points(tmp_grasp_bottom_center,
-                                                                tmp_grasp_normal,
-                                                                tmp_major_pc)[1:]
-                            min_finger_end = hand_points_[:, 2].min()
-                            min_finger_end_pos_ind = np.where(hand_points_[:, 2] == min_finger_end)[0][0]
-
-                            # Lots of tricks: This section remove the grippers collided with table
-                            safety_dis_above_table = 0.003
-                            if min_finger_end < safety_dis_above_table:
-                                min_finger_pos = hand_points_[min_finger_end_pos_ind]  # the lowest point in a gripper
-                                x = -min_finger_pos[2]*tmp_grasp_normal[0]/tmp_grasp_normal[2]+min_finger_pos[0]
-                                y = -min_finger_pos[2]*tmp_grasp_normal[1]/tmp_grasp_normal[2]+min_finger_pos[1]
-                                p_table = np.array([x, y, 0])  # the point that on the table
-                                dis_go_back = np.linalg.norm([min_finger_pos, p_table]) + safety_dis_above_table
-                                tmp_grasp_bottom_center_modify = tmp_grasp_bottom_center-tmp_grasp_normal*dis_go_back
-                            else:
-                                # if the grasp is not collide with the table, do not change the grasp
-                                tmp_grasp_bottom_center_modify = tmp_grasp_bottom_center
-
-                            # final check
-                            _, open_points = self.check_collision_square(tmp_grasp_bottom_center_modify,
-                                                                         tmp_grasp_normal,
-                                                                         tmp_major_pc, minor_pc, all_points,
-                                                                         hand_points, "p_open")
-                            is_collide = self.check_collide(tmp_grasp_bottom_center_modify, tmp_grasp_normal,
-                                                            tmp_major_pc, minor_pc, all_points, hand_points)
-                            if (len(open_points) > 15) and not is_collide:
-                                # here 15 set the minimal points in a grasp, we can set a parameter later
-                                processed_potential_grasp.append([tmp_grasp_bottom_center, tmp_grasp_normal,
-                                                                  tmp_major_pc, minor_pc,
-                                                                  tmp_grasp_bottom_center_modify])
-                                break
-                logger.info("processed_potential_grasp %d", len(processed_potential_grasp))
-
+                                # final check
+                                _, open_points = self.check_collision_square(tmp_grasp_bottom_center_modify,
+                                                                             tmp_grasp_normal,
+                                                                             tmp_major_pc, minor_pc, all_points,
+                                                                             hand_points, "p_open")
+                                is_collide = self.check_collide(tmp_grasp_bottom_center_modify, tmp_grasp_normal,
+                                                                tmp_major_pc, minor_pc, all_points, hand_points)
+                                if (len(open_points) > 15) and not is_collide:
+                                    # here 15 set the minimal points in a grasp, we can set a parameter later
+                                    processed_potential_grasp.append([tmp_grasp_bottom_center, tmp_grasp_normal,
+                                                                      tmp_major_pc, minor_pc,
+                                                                      tmp_grasp_bottom_center_modify])
+                                    logger.info("processed_potential_grasp %d / %d", len(processed_potential_grasp), num_grasps)
+                                    print("The grasps number got by modified GPG: %d / %d"%(len(processed_potential_grasp), num_grasps))
+                                    break
+                if len(processed_potential_grasp) >= num_grasps or sampled_surface_amount >= max_num_samples:
+                    return processed_potential_grasp
             sampled_surface_amount += 1
-            logger.info("current amount of sampled surface %d", sampled_surface_amount)
-            print("current amount of sampled surface:", sampled_surface_amount)
-            print("The grasps number got by modified GPG:", len(processed_potential_grasp))
-            if len(processed_potential_grasp) >= num_grasps or sampled_surface_amount >= max_num_samples:
-                if show_final_grasp:
-                    self.show_all_grasps(all_points, processed_potential_grasp)
-                    self.show_points(all_points, scale_factor=0.002)
-                    mlab.points3d(0, 0, 0, scale_factor=0.01, color=(0, 1, 0))
-                    table_points = np.array([[-1, 1, 0], [1, 1, 0], [1, -1, 0], [-1, -1, 0]]) * 0.5
-                    triangles = [(1, 2, 3), (0, 1, 3)]
-                    mlab.triangular_mesh(table_points[:, 0], table_points[:, 1], table_points[:, 2],
-                                         triangles, color=(0.8, 0.8, 0.8), opacity=0.5)
-                    mlab.show()
-                return processed_potential_grasp
+            logger.info("current amount of sampled surface %d / %d", sampled_surface_amount, max_num_samples)
+            print("current amount of sampled surface: %d / %d"%(sampled_surface_amount, max_num_samples))
         return processed_potential_graspclass

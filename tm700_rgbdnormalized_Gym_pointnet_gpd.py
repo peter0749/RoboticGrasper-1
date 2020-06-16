@@ -32,7 +32,7 @@ with open('./gripper_config.json', 'r') as fp:
 
 num_grasps = 3000 # Same as GPD and GDN
 num_workers = 24
-max_num_samples = 50 # Same as PointnetGPD
+max_num_samples = 150 # Same as PointnetGPD
 minimal_points_send_to_point_net = 150 # need > 20 points to compute normal
 input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
@@ -587,7 +587,7 @@ if __name__ == '__main__':
       start_obj_id = 3
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/home/peter/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -754,7 +754,7 @@ if __name__ == '__main__':
                       fail_n += 1
                       if not info['planning']:
                           fail_and_ik_fail += 1
-                      if False:
+                      if True:
                           pc_subset = np.copy(pc_no_arm)
                           if len(pc_subset)>5000:
                               pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]

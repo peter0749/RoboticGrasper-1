@@ -540,7 +540,7 @@ if __name__ == '__main__':
                   trans    = pose[1][:3, 3]
                   approach = rotation[:3,0]
                   # if there is no suitable IK solution can be found. found next
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(65):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
                       continue
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
                       continue

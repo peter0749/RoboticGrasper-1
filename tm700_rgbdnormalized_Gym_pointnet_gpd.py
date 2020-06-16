@@ -24,15 +24,12 @@ from gpg_sampler import GpgGraspSamplerPcl
 
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
-    margin_in  = 0.002 # GPDs are easy to collide with objects. Add more thickness for gripper.
-    margin_out = 0.005 # GPDs are easy to collide with objects. Add more thickness for gripper.
-    config['thickness'] = config['thickness'] + margin_out
-    config['gripper_width'] = config['gripper_width'] - margin_in
+    config['gripper_width'] -= 0.005
 
 num_grasps = 3000 # Same as GPD and GDN
-num_workers = 24
+num_workers = 10
 max_num_samples = 150 # Same as PointnetGPD
-minimal_points_send_to_point_net = 30 # need > 20 points to compute normal
+minimal_points_send_to_point_net = 21 # need > 20 points to compute normal
 input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
 
@@ -678,18 +675,16 @@ if __name__ == '__main__':
                   approach = rotation[:3,0]
                   # if there is no suitable IK solution can be found. found next
                   # Find more grasp for GPDs since it might not be able to find feasible grasps
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0, 0]).reshape(3,1))) > np.radians(85):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
                       continue
-                  d = np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1)))
-                  # FIXME: In real-world, grasps inside cups and mugs are feasible. But not in simulator. Filter out this kind of grasps.
-                  if d > np.radians(85) or d < np.radians(15):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
                       continue
                   tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
 
                   # Sanity test
                   gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width']+config['thickness']*2,
                                                                          config['hand_height'], tmp_pose,
-                                                                         config['thickness_side'], backward=0.20)[1:]
+                                                                         config['thickness_side'], backward=deepen_hand)[1:]
                   gripper_inner1, gripper_inner2 = generate_gripper_edge(config['gripper_width'], config['hand_height'],
                                                                          tmp_pose, config['thickness_side'])[1:]
                   outer_pts = crop_index(pc_no_arm, gripper_outer1, gripper_outer2)

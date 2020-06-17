@@ -18,6 +18,7 @@ from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
 #from mayavi import mlab
 import pcl
+import point_cloud_utils as pcu # Use pcu to compute normal feature (same as training stage)
 import multiprocessing as mp
 from gpg_sampler import GpgGraspSamplerPcl
 
@@ -25,14 +26,21 @@ from gpg_sampler import GpgGraspSamplerPcl
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
     # GPDs are easy to collide
+    '''
     shrink_width = 0.005
     expand_thick = 0.002
     config['gripper_width'] -= shrink_width
     config['thickness'] += shrink_width*0.5 + expand_thick
+    '''
 
 num_grasps = 3000 # Same as GPD and GDN
 num_workers = 24
 max_num_samples = 150 # Same as PointnetGPD
+
+project_size = 60 # For GPD
+projection_margin = 1 # For GPD
+voxel_point_num = 50 # For GPD
+project_chann = 12 # We only compare GPD with 12 channels
 minimal_points_send_to_point_net = 150 # need > 20 points to compute normal
 input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
@@ -112,6 +120,111 @@ def check_collision_square(grasp_bottom_center, approach_normal, binormal,
 
     return has_p, points_in_area, points_g
 
+def cal_projection(point_cloud_voxel, m_width_of_pic, margin, surface_normal, order, gripper_width):
+    occupy_pic = np.zeros([m_width_of_pic, m_width_of_pic, 1])
+    norm_pic = np.zeros([m_width_of_pic, m_width_of_pic, 3])
+    norm_pic_num = np.zeros([m_width_of_pic, m_width_of_pic, 1])
+
+    max_x = point_cloud_voxel[:, order[0]].max()
+    min_x = point_cloud_voxel[:, order[0]].min()
+    max_y = point_cloud_voxel[:, order[1]].max()
+    min_y = point_cloud_voxel[:, order[1]].min()
+    min_z = point_cloud_voxel[:, order[2]].min()
+
+    tmp = max((max_x - min_x), (max_y - min_y))
+    if tmp == 0:
+        print("WARNING : the num of input points seems only have one, no possilbe to do learning on"
+              "such data, please throw it away.  -- Hongzhuo")
+        return occupy_pic, norm_pic
+    # Here, we use the gripper width to cal the res:
+    res = gripper_width / (m_width_of_pic-margin)
+
+    voxel_points_square_norm = []
+    x_coord_r = ((point_cloud_voxel[:, order[0]]) / res + m_width_of_pic / 2)
+    y_coord_r = ((point_cloud_voxel[:, order[1]]) / res + m_width_of_pic / 2)
+    z_coord_r = ((point_cloud_voxel[:, order[2]]) / res + m_width_of_pic / 2)
+    x_coord_r = np.floor(x_coord_r).astype(int)
+    y_coord_r = np.floor(y_coord_r).astype(int)
+    z_coord_r = np.floor(z_coord_r).astype(int)
+    voxel_index = np.array([x_coord_r, y_coord_r, z_coord_r]).T  # all point in grid
+    coordinate_buffer = np.unique(voxel_index, axis=0)  # get a list of points without duplication
+    K = len(coordinate_buffer)
+    # [K, 1] store number of points in each voxel grid
+    number_buffer = np.zeros(shape=K, dtype=np.int64)
+    feature_buffer = np.zeros(shape=(K, voxel_point_num, 6), dtype=np.float32)
+    index_buffer = {}
+    for i in range(K):
+        index_buffer[tuple(coordinate_buffer[i])] = i  # got index of coordinate
+
+    for voxel, point, normal in zip(voxel_index, point_cloud_voxel, surface_normal):
+        index = index_buffer[tuple(voxel)]
+        number = number_buffer[index]
+        if number < voxel_point_num:
+            feature_buffer[index, number, :3] = point
+            feature_buffer[index, number, 3:6] = normal
+            number_buffer[index] += 1
+
+    voxel_points_square_norm = np.sum(feature_buffer[..., -3:], axis=1)/number_buffer[:, np.newaxis]
+    voxel_points_square = coordinate_buffer
+
+    if len(voxel_points_square) == 0:
+        return occupy_pic, norm_pic
+    x_coord_square = voxel_points_square[:, 0]
+    y_coord_square = voxel_points_square[:, 1]
+    norm_pic[x_coord_square, y_coord_square, :] = voxel_points_square_norm
+    occupy_pic[x_coord_square, y_coord_square] = number_buffer[:, np.newaxis]
+    occupy_max = occupy_pic.max()
+    assert(occupy_max > 0)
+    occupy_pic = occupy_pic / occupy_max
+    return occupy_pic, norm_pic
+
+def project_pc(pc, gripper_width, in_ind):
+    """
+    for gpd baseline, only support input_chann == [3, 12]
+    """
+    '''
+    pc = pc.astype(np.float32)
+    pc = pcl.PointCloud(pc)
+    norm = pc.make_NormalEstimation()
+    norm.set_KSearch(10) # same in training stage
+    normals = norm.compute()
+    surface_normal = normals.to_array()[:, 0:3]
+    '''
+
+    # Use pcu here. Because we trained GPD with pcu.
+    surface_normal = pcu.estimate_normals(pc, k=10)
+    surface_normal = surface_normal[:, 0:3]
+
+    grasp_pc = pc[in_ind]
+    grasp_pc_norm = surface_normal[in_ind]
+    bad_check = (grasp_pc_norm != grasp_pc_norm)
+    if np.sum(bad_check)!=0:
+        bad_ind = np.where(bad_check == True)
+        grasp_pc = np.delete(grasp_pc, bad_ind[0], axis=0)
+        grasp_pc_norm = np.delete(grasp_pc_norm, bad_ind[0], axis=0)
+    assert(np.sum(grasp_pc_norm != grasp_pc_norm) == 0)
+
+    if len(grasp_pc)<minimal_points_send_to_point_net: # No points left
+        return None
+
+    m_width_of_pic = project_size
+    margin = projection_margin
+    order = np.array([0, 1, 2])
+    occupy_pic1, norm_pic1 = cal_projection(grasp_pc, m_width_of_pic, margin, grasp_pc_norm,
+                                                 order, gripper_width)
+    if project_chann == 12:
+        order = np.array([1, 2, 0])
+        occupy_pic2, norm_pic2 = cal_projection(grasp_pc, m_width_of_pic, margin, grasp_pc_norm,
+                                                     order, gripper_width)
+        order = np.array([0, 2, 1])
+        occupy_pic3, norm_pic3 = cal_projection(grasp_pc, m_width_of_pic, margin, grasp_pc_norm,
+                                                 order, gripper_width)
+        output = np.dstack([occupy_pic1, norm_pic1, occupy_pic2, norm_pic2, occupy_pic3, norm_pic3])
+    else:
+        raise NotImplementedError
+
+    return output
+
 def collect_pc(grasp_, pc):
     """
     grasp_bottom_center, normal, major_pc, minor_pc
@@ -131,7 +244,9 @@ def collect_pc(grasp_, pc):
         has_p, in_ind_tmp, points_g = check_collision_square(grasp_bottom_center[i_], approach_normal[i_],
                                                              binormal[i_], minor_pc[i_], pc, p)
         in_ind_.append(in_ind_tmp)
-        in_ind_points_.append(points_g[in_ind_[i_]])
+        feature = project_pc(points_g, config['gripper_width'], in_ind_[i_])
+        #in_ind_points_.append(points_g[in_ind_[i_]])
+        in_ind_points_.append(feature)
     return in_ind_, in_ind_points_
 
 
@@ -565,18 +680,17 @@ if __name__ == '__main__':
   import torch
   torch.backends.cudnn.benchmark = True
   from gdn.utils import *
-  from gdn.baseline.pointnet import PointNetCls
   from gdn.baseline.gpd import GPDClassifier
   from scipy.spatial.transform import Rotation
 
   output_path = sys.argv[2]
   assert output_path.endswith(('.txt', '.out', '.log'))
   total_n = int(sys.argv[3])
-  cls_k = int(sys.argv[4])
+  cls_k = 2
 
   gripper_length = config['hand_height']
   deepen_hand = gripper_length * 1.2
-  model = PointNetCls(num_points=input_points_num, input_chann=3, k=cls_k, return_features=False)
+  model = GPDClassifier(12)
   model = model.cuda()
   model = model.eval()
   model.load_state_dict(torch.load(sys.argv[1]))
@@ -616,16 +730,13 @@ if __name__ == '__main__':
               score_value = []
               assert len(real_grasp) == len(in_ind_points)
               for ii in range(len(in_ind_points)):
-                  if in_ind_points[ii].shape[0] < minimal_points_send_to_point_net:
+                  if in_ind_points[ii] is None or in_ind_points[ii].shape[0] < minimal_points_send_to_point_net:
                       score_value.append(-np.inf)
                   else:
                       score = -np.inf
-                      if len(in_ind_points[ii]) >= input_points_num:
-                          points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),input_points_num, replace=False)]
-                      else:
-                          points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),input_points_num, replace=True)]
+                      feature = np.transpose(in_ind_points[ii], (2, 0, 1)) # (H, W, 12) -> (12, H, W)
                       try:
-                          out = model(torch.from_numpy(points_modify.T).float().unsqueeze(0).cuda())
+                          out = model(torch.from_numpy(feature).float().unsqueeze(0).cuda())
                           if isinstance(out, tuple):
                               out = out[0]
                           score = float(out[0,-1].cpu()) # (#batch,)

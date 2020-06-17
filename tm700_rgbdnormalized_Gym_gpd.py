@@ -25,15 +25,8 @@ from gpg_sampler import GpgGraspSamplerPcl
 
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
-    # GPDs are easy to collide
-    '''
-    shrink_width = 0.005
-    expand_thick = 0.002
-    config['gripper_width'] -= shrink_width
-    config['thickness'] += shrink_width*0.5 + expand_thick
-    '''
 
-num_grasps = 3000 # Same as GPD and GDN
+num_grasps = 1000 # Same as GPD. Even if number sample points is <= 1000. GPDs still slower than GDN
 num_workers = 24
 max_num_samples = 150 # Same as PointnetGPD
 
@@ -42,7 +35,6 @@ projection_margin = 1 # For GPD
 voxel_point_num = 50 # For GPD
 project_chann = 12 # We only compare GPD with 12 channels
 minimal_points_send_to_point_net = 150 # need > 20 points to compute normal
-input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
 
 def cal_grasp(points_, cam_pos_):

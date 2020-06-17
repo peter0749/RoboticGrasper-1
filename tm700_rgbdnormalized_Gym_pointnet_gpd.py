@@ -24,6 +24,11 @@ from gpg_sampler import GpgGraspSamplerPcl
 
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
+    # GPDs are easy to collide
+    shrink_width = 0.005
+    expand_thick = 0.002
+    config['gripper_width'] -= shrink_width
+    config['thickness'] += shrink_width*0.5 + expand_thick
 
 num_grasps = 3000 # Same as GPD and GDN
 num_workers = 24
@@ -74,7 +79,7 @@ def check_collision_square(grasp_bottom_center, approach_normal, binormal,
     '''
     Same behavior as in training stage
     '''
-    width = ags.config['gripper_width']
+    width = config['gpd_gripper_width'] # Here we shoud use the same parameter in training stage instead of real gripper.
     approach_normal = approach_normal.reshape(1, 3)
     approach_normal = approach_normal / np.linalg.norm(approach_normal)
     binormal = binormal.reshape(1, 3)
@@ -83,7 +88,7 @@ def check_collision_square(grasp_bottom_center, approach_normal, binormal,
     minor_pc = minor_pc / np.linalg.norm(minor_pc)
     matrix_ = np.concatenate((approach_normal.T, binormal.T, minor_pc.T), axis=1) # column
     grasp_matrix = matrix_.T
-    center = grasp_bottom_center.reshape(1, 3) + config['hand_height'] * approach_normal # Need convertion
+    center = grasp_bottom_center.reshape(1, 3) + config['gpd_hand_height'] * approach_normal # Need convertion
     points_c = points_ - center
     tmp = np.dot(grasp_matrix, points_c.T)
     points_g = tmp.T

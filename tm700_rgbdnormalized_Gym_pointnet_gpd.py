@@ -25,10 +25,10 @@ from gpg_sampler import GpgGraspSamplerPcl
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
 
-num_grasps = 1000 # Same as GPD and GDN
+num_grasps = 3000 # Same as GPD and GDN
 num_workers = 24
 max_num_samples = 150 # Same as PointnetGPD
-minimal_points_send_to_point_net = 150 # need > 20 points to compute normal
+minimal_points_send_to_point_net = 50 # need > 20 points to compute normal
 input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
 

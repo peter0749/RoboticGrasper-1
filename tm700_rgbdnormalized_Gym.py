@@ -5,6 +5,7 @@ import random
 import os
 from gym import spaces
 import time
+import json
 import pybullet as p
 import numpy as np
 import pybullet_data
@@ -16,6 +17,15 @@ import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
 from mayavi import mlab
+
+
+with open('./gripper_config.json', 'r') as fp:
+    config = json.load(fp)
+    # GPDs are easy to collide
+    shrink_width = 0.010
+    expand_thick = 0.005
+    config['gripper_width'] -= shrink_width
+    config['thickness'] += shrink_width*0.5 + expand_thick
 
 
 class tm700_rgbd_gym(tm700_possensor_gym):
@@ -455,7 +465,6 @@ def get_name_to_link(model_id):
 if __name__ == '__main__':
   import sys
   import pcl
-  import json
   import torch
   torch.backends.cudnn.benchmark = True
   from gdn.representation.euler import *
@@ -463,15 +472,13 @@ if __name__ == '__main__':
   from gdn.detector.edgeconv.backbone import EdgeDet
   from scipy.spatial.transform import Rotation
 
-  with open('./gripper_config.json', 'r') as fp:
-      config = json.load(fp)
 
   output_path = sys.argv[2]
   assert output_path.endswith(('.txt', '.out', '.log'))
   total_n = int(sys.argv[3])
 
   gripper_length = config['hand_height']
-  deepen_hand = gripper_length * 1.2
+  deepen_hand = gripper_length + 0.01
   model = EdgeDet(config, activation_layer=EulerActivation())
   model = model.cuda()
   model = model.eval()
@@ -486,7 +493,7 @@ if __name__ == '__main__':
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -496,7 +503,6 @@ if __name__ == '__main__':
       for uid in test._objectUids:
           obj_link_name_to_index.append((uid, get_name_to_link(uid)))
 
-      #first = True
       success_n = 0
       fail_n = 0
       fail_and_ik_fail = 0
@@ -509,11 +515,7 @@ if __name__ == '__main__':
               point_cloud, segmentation = test.getTargetGraspObservation()
               pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
               pc_no_arm = pc_flatten[segmentation.reshape(-1)>0,:] # (N, 3)
-              '''
-              if first:
-                  pc = pcl.PointCloud(pc_no_arm)
-                  pc.to_file(b'test.pcd')
-              '''
+
               pc_npy = pc_flatten[segmentation.reshape(-1)==start_obj_id,:] # (N, 3)
               if pc_npy.shape[0]<input_points:
                   pc_npy = np.append(pc_npy, pc_npy[np.random.choice(len(pc_npy), input_points-len(pc_npy), replace=True)], axis=0)
@@ -522,12 +524,7 @@ if __name__ == '__main__':
               trans_to_frame = (np.max(pc_npy, axis=0) + np.min(pc_npy, axis=0)) / 2.0
               trans_to_frame[2] = np.min(pc_npy[:,2])
               pc_npy -= trans_to_frame
-              '''
-              if first:
-                  pc = pcl.PointCloud(pc_npy)
-                  pc.to_file(b'test_local.pcd')
-              first = False
-              '''
+
               pc_batch, indices, reverse_lookup_index, _ = subsampling_util([(pc_npy,None),])
               pred = model(pc_batch.cuda(), [pt_idx.cuda() for pt_idx in indices]).cpu().numpy()
               pred_poses = representation.retrive_from_feature_volume_batch(pc_npy[np.newaxis]+trans_to_frame[np.newaxis], reverse_lookup_index, pred, n_output=3000, threshold=-np.inf, nms=True)[0]
@@ -540,21 +537,10 @@ if __name__ == '__main__':
                   trans    = pose[1][:3, 3]
                   approach = rotation[:3,0]
                   # if there is no suitable IK solution can be found. found next
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(70):
                       continue
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
+                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(89.9):
                       continue
-                  '''
-                  if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(80):
-                      continue
-                  while True: # check if gripper collide with table
-                      tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
-                      gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], tmp_pose, config['thickness_side'])
-                      gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-                      if gripper_l_t[2]>0.001 and gripper_r_t[2]>0.001:
-                          break
-                      trans = trans - approach * 0.001
-                  '''
                   tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
 
                   # Sanity test
@@ -587,9 +573,9 @@ if __name__ == '__main__':
               pred_poses = new_pred_poses
               print('Generated2 %d grasps'%len(pred_poses))
               pc_subset = np.copy(pc_no_arm)
-              if len(pc_subset)>5000:
-                  pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
               if False:
+                  if len(pc_subset)>5000:
+                      pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
                   mlab.clf()
                   mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
                   for n, pose_ in enumerate(pred_poses):
@@ -641,7 +627,7 @@ if __name__ == '__main__':
                   # Test if we can lift the object
                   p.setGravity(0, 0, -10)
                   pose[:3,3] += np.array([0, 0, 0.30])
-                  test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=1000, min_iteration=5)
+                  test.step_to_target_pose([pose, 0.2],  ts=ts, max_iteration=5000, min_iteration=5)
                   for _ in range(1000):
                       p.stepSimulation()
                   if not test._current_objList[0] in obj_success_rate:

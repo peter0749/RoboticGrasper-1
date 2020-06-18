@@ -33,7 +33,7 @@ with open('./gripper_config.json', 'r') as fp:
 num_grasps = 3000 # Same as GPD and GDN
 num_workers = 24
 max_num_samples = 150 # Same as PointnetGPD
-minimal_points_send_to_point_net = 50 # need > 20 points to compute normal
+minimal_points_send_to_point_net = 25 # need > 20 points to compute normal
 input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
 
@@ -621,11 +621,13 @@ if __name__ == '__main__':
                   else:
                       score = -np.inf
                       if len(in_ind_points[ii]) >= input_points_num:
-                          points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),input_points_num, replace=False)]
+                          points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),input_points_num, replace=False)].astype(np.float32)
                       else:
-                          points_modify = in_ind_points[ii][np.random.choice(len(in_ind_points[ii]),input_points_num, replace=True)]
+                          cropped_points = in_ind_points[ii]
+                          additional_points = cropped_points[np.random.choice(len(cropped_points),input_points_num-len(cropped_points), replace=True)]
+                          points_modify = np.append(cropped_points, additional_points, axis=0).astype(np.float32)
                       try:
-                          out = model(torch.from_numpy(points_modify.T).float().unsqueeze(0).cuda())
+                          out = model(torch.from_numpy(points_modify.T).unsqueeze(0).cuda())
                           if isinstance(out, tuple):
                               out = out[0]
                           score = float(out[0,-1].cpu()) # (#batch,)

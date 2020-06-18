@@ -31,7 +31,7 @@ with open('./gripper_config.json', 'r') as fp:
     config['gripper_width'] -= shrink_width
     config['thickness'] += shrink_width*0.5 + expand_thick
 
-num_grasps = 3000
+num_grasps = 1000
 num_workers = 24
 max_num_samples = 150 # Same as PointnetGPD
 

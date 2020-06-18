@@ -39,7 +39,7 @@ project_size = 60 # For GPD
 projection_margin = 1 # For GPD
 voxel_point_num = 50 # For GPD
 project_chann = 12 # We only compare GPD with 12 channels
-minimal_points_send_to_point_net = 50 # need > 20 points to compute normal
+minimal_points_send_to_point_net = 25 # need > 20 points to compute normal
 ags = GpgGraspSamplerPcl(config)
 
 def cal_grasp(points_, cam_pos_):

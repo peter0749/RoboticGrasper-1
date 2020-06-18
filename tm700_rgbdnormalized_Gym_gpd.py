@@ -26,8 +26,8 @@ from gpg_sampler import GpgGraspSamplerPcl
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
     # GPDs are easy to collide
-    shrink_width = 0.005
-    expand_thick = 0.002
+    shrink_width = 0.010
+    expand_thick = 0.005
     config['gripper_width'] -= shrink_width
     config['thickness'] += shrink_width*0.5 + expand_thick
 
@@ -686,7 +686,7 @@ if __name__ == '__main__':
   cls_k = 2
 
   gripper_length = config['hand_height']
-  deepen_hand = gripper_length * 1.2
+  deepen_hand = gripper_length + 0.01
   model = GPDClassifier(12)
   model = model.cuda()
   model = model.eval()

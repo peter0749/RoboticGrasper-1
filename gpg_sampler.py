@@ -267,12 +267,13 @@ class GpgGraspSamplerPcl(GraspSampler):
            list of generated grasps
         """
         params = {
-            'num_dy': 4,   # number
+            'num_dy': 2,   # number
             'dy_step': 0.005,
-            'dtheta': 3,  # unit degree
-            'range_dtheta': 30,
-            'r_ball': 0.02,
-            'approach_step': 0.002,
+            'dtheta': 5,  # unit degree
+            'range_dtheta': 45,
+            'r_ball': 0.01,
+            'approach_step': 0.005,
+            'step_back': 0.01, # step back 1cm to avoid collision in real grasp
         }
 
         # get all surface points
@@ -379,7 +380,7 @@ class GpgGraspSamplerPcl(GraspSampler):
 
                 tmp_grasp_bottom_center = selected_surface + tmp_major_pc * dy
                 # go back a bite after rotation dtheta and translation dy!
-                tmp_grasp_bottom_center = self.config['hand_height'] * (
+                tmp_grasp_bottom_center = 0.02 * (
                         -tmp_grasp_normal) + tmp_grasp_bottom_center
 
                 open_points, _ = self.check_collision_square(tmp_grasp_bottom_center, tmp_grasp_normal,
@@ -413,7 +414,7 @@ class GpgGraspSamplerPcl(GraspSampler):
 
                             if is_collide:
                                 # if collide, go back one step to get a collision free hand position
-                                tmp_grasp_bottom_center += (-tmp_grasp_normal) * params['approach_step'] * 1.001
+                                tmp_grasp_bottom_center += (-tmp_grasp_normal) * (params['approach_step'] + params['step_back'])
 
                                 # here we check if the gripper collide with the table.
                                 hand_points_ = self.get_hand_points(tmp_grasp_bottom_center,
@@ -442,8 +443,7 @@ class GpgGraspSamplerPcl(GraspSampler):
                                                                              hand_points, "p_open")
                                 is_collide = self.check_collide(tmp_grasp_bottom_center_modify, tmp_grasp_normal,
                                                                 tmp_major_pc, minor_pc, all_points, hand_points)
-                                if (len(open_points) > 15) and not is_collide:
-                                    # here 15 set the minimal points in a grasp, we can set a parameter later
+                                if (len(open_points) > 20) and not is_collide:
                                     processed_potential_grasp.append([tmp_grasp_bottom_center, tmp_grasp_normal,
                                                                       tmp_major_pc, minor_pc,
                                                                       tmp_grasp_bottom_center_modify])

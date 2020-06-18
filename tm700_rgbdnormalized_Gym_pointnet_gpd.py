@@ -25,8 +25,8 @@ from gpg_sampler import GpgGraspSamplerPcl
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
     # GPDs are easy to collide
-    shrink_width = 0.005
-    expand_thick = 0.002
+    shrink_width = 0.010
+    expand_thick = 0.005
     config['gripper_width'] -= shrink_width
     config['thickness'] += shrink_width*0.5 + expand_thick
 
@@ -575,7 +575,7 @@ if __name__ == '__main__':
   cls_k = int(sys.argv[4])
 
   gripper_length = config['hand_height']
-  deepen_hand = gripper_length * 1.2
+  deepen_hand = gripper_length + 0.01
   model = PointNetCls(num_points=input_points_num, input_chann=3, k=cls_k, return_features=False)
   model = model.cuda()
   model = model.eval()
@@ -653,6 +653,23 @@ if __name__ == '__main__':
                   pred_poses.append((score, pose))
 
               print('Generated1 %d grasps'%len(pred_poses))
+
+              if False:
+                  pc_subset = np.copy(pc_no_arm)
+                  if len(pc_subset)>5000:
+                      pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
+                  mlab.clf()
+                  mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
+                  for i in range(min(30, len(pred_poses))):
+                      pose = np.copy(pred_poses[i][1]).astype(np.float32)
+                      gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'])
+                      gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
+
+                      mlab.plot3d([gripper_l[0], gripper_r[0]], [gripper_l[1], gripper_r[1]], [gripper_l[2], gripper_r[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
+                      mlab.plot3d([gripper_l[0], gripper_l_t[0]], [gripper_l[1], gripper_l_t[1]], [gripper_l[2], gripper_l_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
+                      mlab.plot3d([gripper_r[0], gripper_r_t[0]], [gripper_r[1], gripper_r_t[1]], [gripper_r[2], gripper_r_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
+                  mlab.show()
+                  input()
 
               new_pred_poses = []
               for pose in pred_poses:
@@ -754,23 +771,6 @@ if __name__ == '__main__':
                       fail_n += 1
                       if not info['planning']:
                           fail_and_ik_fail += 1
-                      if False:
-                          pc_subset = np.copy(pc_no_arm)
-                          if len(pc_subset)>5000:
-                              pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
-                          mlab.clf()
-                          mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
-                          for i in range(min(30, len(pred_poses))):
-                              pose = np.copy(pred_poses[i][1]).astype(np.float32)
-                              pose[:,3] += pose[:,0] * deepen_hand
-                              gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'])
-                              gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-
-                              mlab.plot3d([gripper_l[0], gripper_r[0]], [gripper_l[1], gripper_r[1]], [gripper_l[2], gripper_r[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
-                              mlab.plot3d([gripper_l[0], gripper_l_t[0]], [gripper_l[1], gripper_l_t[1]], [gripper_l[2], gripper_l_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
-                              mlab.plot3d([gripper_r[0], gripper_r_t[0]], [gripper_r[1], gripper_r_t[1]], [gripper_r[2], gripper_r_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if i>0 else (1,0,0), opacity=0.5)
-                          mlab.show()
-                          input()
                   obj_success_rate[test._current_objList[0]] = (obj_success_n, obj_iter_n)
               result_fp.write("Iteration %d:\n"%(ite+1))
               for obj_name in sorted(list(obj_success_rate)):

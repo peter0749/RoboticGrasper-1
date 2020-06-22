@@ -467,11 +467,16 @@ if __name__ == '__main__':
   import pcl
   import torch
   torch.backends.cudnn.benchmark = True
+  torch.multiprocessing.set_start_method('forkserver')
   from gdn.representation.euler import *
   from gdn.utils import *
   from gdn.detector.edgeconv.backbone import EdgeDet
+  from nms import nms as gripper_nms
+  from nms import initEigen
   from scipy.spatial.transform import Rotation
 
+  os.environ['OMP_NUM_THREADS'] = '8'
+  initEigen(0)
 
   output_path = sys.argv[2]
   assert output_path.endswith(('.txt', '.out', '.log'))
@@ -493,7 +498,7 @@ if __name__ == '__main__':
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/tmp2/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -525,16 +530,30 @@ if __name__ == '__main__':
               trans_to_frame[2] = np.min(pc_npy[:,2])
               pc_npy -= trans_to_frame
 
+              start_ts = time.time()
               pc_batch, indices, reverse_lookup_index, _ = subsampling_util([(pc_npy,None),])
+              ss_ts = time.time()
+              print("Subsampling in %.2f seconds."%(ss_ts-start_ts))
               pred = model(pc_batch.cuda(), [pt_idx.cuda() for pt_idx in indices]).cpu().numpy()
-              pred_poses = representation.retrive_from_feature_volume_batch(pc_npy[np.newaxis]+trans_to_frame[np.newaxis], reverse_lookup_index, pred, n_output=3000, threshold=-np.inf, nms=True)[0]
-              pred_poses = representation.filter_out_invalid_grasp_batch(pc_no_arm[np.newaxis], [pred_poses], n_collision=1)[0]
-              print('Generated1 %d grasps'%len(pred_poses))
+              inf_ts = time.time()
+              print("Inference in %.2f seconds."%(inf_ts-ss_ts))
+              pred_poses = retrive_from_feature_volume_fast(pc_npy[reverse_lookup_index[0]]+trans_to_frame[np.newaxis], pred[0], *pred[0].shape[:-1],
+                      config['hand_height'],
+                      config['gripper_width'],
+                      config['thickness_side'],
+                      config['rot_th'],
+                      config['trans_th'],
+                      n_output=2000, threshold=-np.inf)
+              pred_poses = np.asarray(gripper_nms(pred_poses, config['rot_th'], config['trans_th'], 300, 8), dtype=np.float32)
+              filter_ts = time.time()
+              pred_poses = filter_out_invalid_grasp_fast(config, pc_no_arm, pred_poses, n_collision=1)
+              end_ts = time.time()
+              print("Filter in %.2f seconds."%(end_ts-filter_ts))
+              print('Generated1 %d grasps in %.2f seconds.'%(len(pred_poses), end_ts-start_ts))
               new_pred_poses = []
               for pose in pred_poses:
-                  score    = pose[0]
-                  rotation = pose[1][:3,:3]
-                  trans    = pose[1][:3, 3]
+                  rotation = pose[:3,:3]
+                  trans    = pose[:3, 3]
                   approach = rotation[:3,0]
                   # if there is no suitable IK solution can be found. found next
                   if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
@@ -569,7 +588,7 @@ if __name__ == '__main__':
                       continue
 
                   new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
-                  new_pred_poses.append((score, new_pose))
+                  new_pred_poses.append(new_pose)
               pred_poses = new_pred_poses
               print('Generated2 %d grasps'%len(pred_poses))
               pc_subset = np.copy(pc_no_arm)
@@ -579,7 +598,7 @@ if __name__ == '__main__':
                   mlab.clf()
                   mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
                   for n, pose_ in enumerate(pred_poses):
-                      pose = np.copy(pose_[1])
+                      pose = np.copy(pose_)
                       pose[:,3] += pose[:,0] * deepen_hand
                       gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'])
                       gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
@@ -593,7 +612,7 @@ if __name__ == '__main__':
                   print("No suitable grasp found.")
                   no_solution_fail += 1
               else:
-                  best_grasp = pred_poses[0][1] # (3, 4)
+                  best_grasp = pred_poses[0] # (3, 4)
                   rotation = best_grasp[:3,:3]
                   trans_backward = best_grasp[:,3]
                   approach = best_grasp[:3,0]

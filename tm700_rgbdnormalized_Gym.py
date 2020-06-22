@@ -471,8 +471,9 @@ if __name__ == '__main__':
   from gdn.representation.euler import *
   from gdn.utils import *
   from gdn.detector.edgeconv.backbone import EdgeDet
-  from nms import nms as gripper_nms
-  from nms import initEigen
+  #from nms import nms as gripper_nms
+  from nms import decode_euler_feature
+  from nms import initEigen, sanity_check
   from scipy.spatial.transform import Rotation
 
   os.environ['OMP_NUM_THREADS'] = '8'
@@ -537,6 +538,7 @@ if __name__ == '__main__':
               pred = model(pc_batch.cuda(), [pt_idx.cuda() for pt_idx in indices]).cpu().numpy()
               inf_ts = time.time()
               print("Inference in %.2f seconds."%(inf_ts-ss_ts))
+              '''
               pred_poses = retrive_from_feature_volume_fast(pc_npy[reverse_lookup_index[0]]+trans_to_frame[np.newaxis], pred[0], *pred[0].shape[:-1],
                       config['hand_height'],
                       config['gripper_width'],
@@ -545,8 +547,35 @@ if __name__ == '__main__':
                       config['trans_th'],
                       n_output=2000, threshold=-np.inf)
               pred_poses = np.asarray(gripper_nms(pred_poses, config['rot_th'], config['trans_th'], 300, 8), dtype=np.float32)
+              '''
+              feat_ts = time.time()
+              pred_poses = np.asarray(decode_euler_feature(
+                    pc_npy[reverse_lookup_index[0]]+trans_to_frame[np.newaxis],
+                    pred[0].reshape(1,-1),
+                    *pred[0].shape[:-1],
+                    config['hand_height'],
+                    config['gripper_width'],
+                    config['thickness_side'],
+                    config['rot_th'],
+                    config['trans_th'],
+                    3000, # max number of candidate
+                    -np.inf, # threshold of candidate
+                    350,  # max number of grasp in NMS
+                    8,    # number of threads
+                    True  # use NMS
+                  ), dtype=np.float32)
               filter_ts = time.time()
+              print("Decode in %.2f seconds."%(filter_ts-feat_ts))
+              '''
               pred_poses = filter_out_invalid_grasp_fast(config, pc_no_arm, pred_poses, n_collision=1)
+              '''
+              pred_poses = sanity_check(pc_no_arm, pred_poses, 2,
+                      config['gripper_width'],
+                      config['thickness'],
+                      config['hand_height'],
+                      config['thickness_side'],
+                      8 # num threads
+                      )
               end_ts = time.time()
               print("Filter in %.2f seconds."%(end_ts-filter_ts))
               print('Generated1 %d grasps in %.2f seconds.'%(len(pred_poses), end_ts-start_ts))

@@ -601,8 +601,8 @@ if __name__ == '__main__':
                   outer_pts = crop_index(pc_no_arm, gripper_outer1, gripper_outer2)
                   if len(outer_pts) == 0: # No points between fingers
                       continue
-                  inner_pts = crop_index(pc_no_arm, gripper_inner1, gripper_inner2)
-                  if len(outer_pts) - len(np.intersect1d(inner_pts, outer_pts)) > 2: # has collision
+                  inner_pts = crop_index(pc_no_arm[outer_pts], gripper_inner1, gripper_inner2)
+                  if len(outer_pts) - len(inner_pts) > 2: # has collision
                       continue
 
                   trans_backward = trans - approach * deepen_hand

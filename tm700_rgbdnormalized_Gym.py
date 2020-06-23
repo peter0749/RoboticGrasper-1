@@ -16,7 +16,7 @@ from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
-from mayavi import mlab
+#from mayavi import mlab
 
 
 with open('./gripper_config.json', 'r') as fp:
@@ -499,8 +499,8 @@ if __name__ == '__main__':
       start_obj_id = 3
       input_points = 2048
       ts = None #1/240.
-      #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='/home/peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/home/peter0749/YCB_valset_urdf')
+      #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -559,10 +559,10 @@ if __name__ == '__main__':
                     config['thickness_side'],
                     config['rot_th'],
                     config['trans_th'],
-                    2000, # max number of candidate
+                    3000, # max number of candidate
                     -np.inf, # threshold of candidate
-                    300,  # max number of grasp in NMS
-                    8,    # number of threads
+                    500,  # max number of grasp in NMS
+                    20,    # number of threads
                     True  # use NMS
                   ), dtype=np.float32)
               filter_ts = time.time()
@@ -575,11 +575,14 @@ if __name__ == '__main__':
                       config['thickness'],
                       config['hand_height'],
                       config['thickness_side'],
-                      8 # num threads
+                      20 # num threads
                       )
               end_ts = time.time()
               print("Filter in %.2f seconds."%(end_ts-filter_ts))
               print('Generated1 %d grasps in %.2f seconds.'%(len(pred_poses), end_ts-start_ts))
+              result_fp.write('Generated1 %d grasps in %.2f seconds.\n'%(len(pred_poses), end_ts-start_ts))
+              result_fp.flush()
+
               new_pred_poses = []
               for pose in pred_poses:
                   rotation = pose[:3,:3]

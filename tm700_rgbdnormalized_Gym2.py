@@ -545,7 +545,7 @@ if __name__ == '__main__':
                       config['thickness_side'],
                       config['rot_th'],
                       config['trans_th'],
-                      n_output=2000, threshold=-np.inf, nms=True)
+                      n_output=3000, threshold=-np.inf, nms=True)
               #pred_poses = np.asarray(gripper_nms(pred_poses, config['rot_th'], config['trans_th'], 300, 8), dtype=np.float32)
               feat_ts = time.time()
               '''
@@ -580,6 +580,8 @@ if __name__ == '__main__':
               end_ts = time.time()
               print("Filter in %.2f seconds."%(end_ts-filter_ts))
               print('Generated1 %d grasps in %.2f seconds.'%(len(pred_poses), end_ts-start_ts))
+              result_fp.write('Generated1 %d grasps in %.2f seconds.\n'%(len(pred_poses), end_ts-start_ts))
+              result_fp.flush()
               new_pred_poses = []
               for pose in pred_poses:
                   rotation = pose[:3,:3]

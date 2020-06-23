@@ -469,11 +469,12 @@ if __name__ == '__main__':
   torch.backends.cudnn.benchmark = True
   torch.multiprocessing.set_start_method('forkserver')
   from gdn.representation.euler import *
-  from gdn.utils import *
+  #from gdn.utils import *
   from gdn.detector.edgeconv.backbone import EdgeDet
   #from nms import nms as gripper_nms
   from nms import decode_euler_feature
   from nms import initEigen, sanity_check
+  from nms import crop_index, generate_gripper_edge
   from scipy.spatial.transform import Rotation
 
   os.environ['OMP_NUM_THREADS'] = '8'
@@ -493,7 +494,7 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       input_points = 2048
@@ -558,9 +559,9 @@ if __name__ == '__main__':
                     config['thickness_side'],
                     config['rot_th'],
                     config['trans_th'],
-                    3000, # max number of candidate
+                    2000, # max number of candidate
                     -np.inf, # threshold of candidate
-                    350,  # max number of grasp in NMS
+                    300,  # max number of grasp in NMS
                     8,    # number of threads
                     True  # use NMS
                   ), dtype=np.float32)
@@ -594,14 +595,14 @@ if __name__ == '__main__':
                   # Sanity test
                   gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width']+config['thickness']*2,
                                                                          config['hand_height'], tmp_pose,
-                                                                         config['thickness_side'], backward=deepen_hand)[1:]
+                                                                         config['thickness_side'], deepen_hand)[1:]
                   gripper_inner1, gripper_inner2 = generate_gripper_edge(config['gripper_width'], config['hand_height'],
-                                                                         tmp_pose, config['thickness_side'])[1:]
+                                                                         tmp_pose, config['thickness_side'], 0.0)[1:]
                   outer_pts = crop_index(pc_no_arm, gripper_outer1, gripper_outer2)
                   if len(outer_pts) == 0: # No points between fingers
                       continue
-                  inner_pts = crop_index(pc_no_arm, gripper_inner1, gripper_inner2, search_idx=outer_pts)
-                  if len(outer_pts) - len(np.intersect1d(inner_pts, outer_pts)) > 0: # has collision
+                  inner_pts = crop_index(pc_no_arm, gripper_inner1, gripper_inner2)
+                  if len(outer_pts) - len(np.intersect1d(inner_pts, outer_pts)) > 2: # has collision
                       continue
 
                   trans_backward = trans - approach * deepen_hand
@@ -610,7 +611,9 @@ if __name__ == '__main__':
                   gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'],
                                                                                              config['hand_height'],
                                                                                              tmp_pose,
-                                                                                             config['thickness_side'])
+                                                                                             config['thickness_side'],
+                                                                                             0.0
+                                                                                             )
                   gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
                   if gripper_l_t[2] < 0.003 or gripper_r_t[2] < 0.003 or \
                      gripper_l[2]   < 0.003 or gripper_r[2]   < 0.003: # ready pose will collide with table
@@ -629,7 +632,7 @@ if __name__ == '__main__':
                   for n, pose_ in enumerate(pred_poses):
                       pose = np.copy(pose_)
                       pose[:,3] += pose[:,0] * deepen_hand
-                      gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'])
+                      gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'], 0.0)
                       gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
 
                       mlab.plot3d([gripper_l[0], gripper_r[0]], [gripper_l[1], gripper_r[1]], [gripper_l[2], gripper_r[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)

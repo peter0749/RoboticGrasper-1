@@ -48,6 +48,18 @@ class tm700:
     # ]
     self.reset()
 
+  def home(self):
+    p.resetBasePositionAndOrientation(self.tm700Uid, [0.0, 0.0, -0.0], # position of robot, GREEN IS Y AXIS
+                                      [0.000000, 0.000000, 1.000000, 0.000000]) # direction of robot
+    self.numJoints = p.getNumJoints(self.tm700Uid)
+    for jointIndex in range(self.numJoints):
+        p.resetJointState(self.tm700Uid, jointIndex, self.jointPositions[jointIndex])
+        p.setJointMotorControl2(self.tm700Uid,
+                              jointIndex,
+                              p.POSITION_CONTROL,
+                              targetPosition=self.jointPositions[jointIndex],
+                              force=self.maxForce)
+
   def reset(self):
 
     robot = p.loadURDF("./Gazebo_arm/urdf/tm700_robot_clean.urdf") #add two dots to start it from pycharm. i have no idea why. TODO:

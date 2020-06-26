@@ -712,6 +712,6 @@ if __name__ == '__main__':
                   print("Success hist: ", grasp_success_obj)
                   if grasp_success_obj.all():
                       success_n += 1
-                      result_fp.write("Complete rate: %.6f (%d / %d)\n"%(success_n/(ite+1), success_n, ite+1))
-                      result_fp.flush()
                       break
+                  result_fp.write("Complete rate: %.6f (%d / %d)\n"%(success_n/(ite+1), success_n, ite+1))
+                  result_fp.flush()

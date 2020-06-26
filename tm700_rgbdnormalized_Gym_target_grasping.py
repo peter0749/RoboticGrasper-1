@@ -488,13 +488,13 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      #p.connect(p.GUI)
+      p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -523,6 +523,9 @@ if __name__ == '__main__':
                       if grasp_success_obj[obj_i]:
                           continue
                       test._tm700.home()
+                      # Clear out velocity of objects for consistancy
+                      for _uid in test._objectUids:
+                          p.resetBaseVelocity(_uid, [0, 0, 0], [0, 0, 0])
                       point_cloud, segmentation = test.getTargetGraspObservation()
                       obj_seg = segmentation.reshape(-1)==id_
                       if not obj_seg.any(): # Not visible now. Pick up another object to make it visible
@@ -569,7 +572,7 @@ if __name__ == '__main__':
                             5000, # max number of candidate
                             -np.inf, # threshold of candidate
                             1000,  # max number of grasp in NMS
-                            20,    # number of threads
+                            11,    # number of threads
                             True  # use NMS
                           ), dtype=np.float32)
                       print('Generated0 %d grasps.'%len(pred_poses))
@@ -580,7 +583,7 @@ if __name__ == '__main__':
                               config['thickness'],
                               config['hand_height'],
                               config['thickness_side'],
-                              20 # num threads
+                              11 # num threads
                               )
                       end_ts = time.time()
                       print("Filter in %.2f seconds."%(end_ts-filter_ts))
@@ -593,10 +596,7 @@ if __name__ == '__main__':
                           rotation = pose[:3,:3]
                           trans    = pose[:3, 3]
                           approach = rotation[:3,0]
-                          # if there is no suitable IK solution can be found. found next
-                          if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(70):
-                              continue
-                          if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(89):
+                          if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(85):
                               continue
                           tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
 
@@ -655,14 +655,15 @@ if __name__ == '__main__':
                                     p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 0)
                           # Ready to grasp pose
                           test._tm700.home()
-                          info = test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=5000, min_iteration=1)[-1]
+                          info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
+                          info_backward = test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
                           if tried_top1_grasp is None:
                               tried_top1_grasp = (pose_backward, pose)
-                          if info['planning']:
+                          if info['planning'] and info_backward['planning']:
                               break # Feasible Pose found
                           else:
                               print("Inverse Kinematics failed.")
-                      if (not info['planning']) and (not tried_top1_grasp is None):
+                      if (not (info['planning'] and info_backward['planning'])) and (not tried_top1_grasp is None):
                           pose_backward, pose = tried_top1_grasp
                       # Enable collision detection to test if a grasp is successful.
                       for link_name, link_id in tm_link_name_to_index.items():
@@ -670,12 +671,12 @@ if __name__ == '__main__':
                               for obj_name, obj_link in obj.items():
                                 p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 1)
                       # Enable collision detection for gripper head, fingers
-                      p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['gripper_link'], -1, 1)
+                      #p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['gripper_link'], -1, 1)
                       p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_r_link'], -1, 1)
                       p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_l_link'], -1, 1)
                       # Deepen gripper hand
                       for d in np.linspace(0, 1, 60):
-                          info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=20, min_iteration=1)[-1]
+                          info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=100, min_iteration=1)[-1]
                       info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=500, min_iteration=1)[-1]
                       if not info['planning']:
                           print("Inverse Kinematics failed.")

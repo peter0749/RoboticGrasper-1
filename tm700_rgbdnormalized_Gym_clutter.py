@@ -491,12 +491,12 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      #p.connect(p.GUI)
+      p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
-      #desired_input_points = 2048
-      #desired_obj_range = 0.20 # assume 20cm of value range
-      input_points = 2048
+      desired_input_points = 2048
+      desired_obj_range = 0.20 # assume 20cm of value range
+      #input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
       test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter/YCB_valset_urdf')
@@ -520,6 +520,10 @@ if __name__ == '__main__':
               grasp_success_obj = np.zeros(len(object_set), dtype=np.bool)
               grasp_failure_obj = np.zeros(len(object_set)+1, dtype=np.int32)
               while (not grasp_success_obj.all()) and grasp_failure_obj.max()<max_tries:
+                  # Clear out velocity of objects for consistancy
+                  for _uid in test._objectUids:
+                      p.resetBaseVelocity(_uid, [0, 0, 0], [0, 0, 0])
+                  test._tm700.home()
                   point_cloud, segmentation = test.getTargetGraspObservation()
                   pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
                   pc_no_arm = pc_flatten[segmentation.reshape(-1)>0,:] # (N, 3)
@@ -532,8 +536,8 @@ if __name__ == '__main__':
                   trans_to_frame[2] = np.min(pc_npy[:,2])
                   objs_value_range = (pc_npy_max - pc_npy_min).max()
                   # Normalize points density
-                  #input_points = min(4096, int(desired_input_points * max(1.0, (objs_value_range / desired_obj_range)**1.25)))
-                  #print("Input points: %d"%input_points)
+                  input_points = min(4096, int(desired_input_points * max(1.0, (objs_value_range / desired_obj_range)**1.25)))
+                  print("Input points: %d"%input_points)
                   while pc_npy.shape[0]<input_points:
                       new_pts = pc_npy[np.random.choice(len(pc_npy), input_points-len(pc_npy), replace=True)]
                       new_pts = new_pts + np.random.randn(*new_pts.shape) * 1e-6
@@ -589,9 +593,7 @@ if __name__ == '__main__':
                       trans    = pose[:3, 3]
                       approach = rotation[:3,0]
                       # if there is no suitable IK solution can be found. found next
-                      if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(70):
-                          continue
-                      if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(89):
+                      if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(85):
                           continue
                       tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
 
@@ -662,14 +664,15 @@ if __name__ == '__main__':
 
                       # Ready to grasp pose
                       test._tm700.home()
-                      info = test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=5000, min_iteration=1)[-1]
+                      info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
+                      info_backward = test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
                       if tried_top1_pose is None:
                           tried_top1_pose = (pose_backward, pose)
-                      if info['planning']:
+                      if info['planning'] and info_backward['planning']:
                           break
                       else:
                           print("Inverse Kinematics failed.")
-                  if (not info['planning']) and (not tried_top1_pose is None): # Planning failed
+                  if (not (info['planning'] and info_backward['planning'])) and (not tried_top1_pose is None): # Planning failed
                       pose_backward, pose = tried_top1_pose
                   # Enable collision detection to test if a grasp is successful.
                   for link_name, link_id in tm_link_name_to_index.items():
@@ -677,11 +680,11 @@ if __name__ == '__main__':
                           for obj_name, obj_link in obj.items():
                             p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 1)
                   # Enable collision detection for gripper head, fingers
-                  p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['gripper_link'], -1, 1)
+                  #p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['gripper_link'], -1, 1)
                   p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_r_link'], -1, 1)
                   p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_l_link'], -1, 1)
                   # Deepen gripper hand
-                  for d in np.linspace(0, 1, 100):
+                  for d in np.linspace(0, 1, 60):
                       info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=50, min_iteration=1)[-1]
                   info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=500, min_iteration=1)[-1]
                   if not info['planning']:

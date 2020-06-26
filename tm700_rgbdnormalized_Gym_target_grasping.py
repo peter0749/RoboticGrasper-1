@@ -494,7 +494,7 @@ if __name__ == '__main__':
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -514,7 +514,9 @@ if __name__ == '__main__':
               object_name = list(test._objNameList)
               grasp_success_obj = np.zeros(len(object_set), dtype=np.bool)
               grasp_failure_obj = np.zeros(len(object_set), dtype=np.int32)
-              while (not grasp_success_obj.all()) and grasp_failure_obj.max()<max_tries:
+              total_grasp_tries_count_down = max_tries * len(object_set)
+              while total_grasp_tries_count_down>0 and (not grasp_success_obj.all()) and grasp_failure_obj.max()<max_tries:
+                  total_grasp_tries_count_down -= 1
                   grasp_order = np.random.permutation(len(grasp_failure_obj)) # Randomly specify an object to grasp
                   for obj_i in grasp_order:
                       id_ = object_set[obj_i]
@@ -567,7 +569,7 @@ if __name__ == '__main__':
                             5000, # max number of candidate
                             -np.inf, # threshold of candidate
                             1000,  # max number of grasp in NMS
-                            12,    # number of threads
+                            20,    # number of threads
                             True  # use NMS
                           ), dtype=np.float32)
                       print('Generated0 %d grasps.'%len(pred_poses))
@@ -578,7 +580,7 @@ if __name__ == '__main__':
                               config['thickness'],
                               config['hand_height'],
                               config['thickness_side'],
-                              12 # num threads
+                              20 # num threads
                               )
                       end_ts = time.time()
                       print("Filter in %.2f seconds."%(end_ts-filter_ts))

@@ -524,6 +524,8 @@ if __name__ == '__main__':
                   pc_flatten = point_cloud.reshape(-1,3).astype(np.float32)
                   pc_no_arm = pc_flatten[segmentation.reshape(-1)>0,:] # (N, 3)
                   pc_npy = pc_flatten[segmentation.reshape(-1)>=3,:] # (N, 3)
+                  if len(pc_npy)==0:
+                      break
                   pc_npy_max = np.max(pc_npy, axis=0)
                   pc_npy_min = np.min(pc_npy, axis=0)
                   trans_to_frame = (pc_npy_max + pc_npy_min) / 2.0

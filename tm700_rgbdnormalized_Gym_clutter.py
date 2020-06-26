@@ -491,7 +491,7 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       desired_input_points = 2048
@@ -499,7 +499,7 @@ if __name__ == '__main__':
       #input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -674,6 +674,7 @@ if __name__ == '__main__':
                           print("Inverse Kinematics failed.")
                   if (not (info['planning'] and info_backward['planning'])) and (not tried_top1_pose is None): # Planning failed
                       pose_backward, pose = tried_top1_pose
+                      test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
                   # Enable collision detection to test if a grasp is successful.
                   for link_name, link_id in tm_link_name_to_index.items():
                       for obj_id, obj in obj_link_name_to_index:

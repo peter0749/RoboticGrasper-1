@@ -497,7 +497,7 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       desired_input_points = 2048
@@ -505,23 +505,22 @@ if __name__ == '__main__':
       #input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter/YCB_valset_urdf')
-
-      test.reset()
-      tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
-      table_link_name_to_index = get_name_to_link(test.tableUid)
-
-      obj_link_name_to_index = []
-      for uid in test._objectUids:
-          obj_link_name_to_index.append((uid, get_name_to_link(uid)))
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       success_n = 0
       max_tries = 3
       with torch.no_grad():
           for ite in range(total_n):
               test.reset()
+
+              tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
+              table_link_name_to_index = get_name_to_link(test.tableUid)
+
+              obj_link_name_to_index = []
+              for uid in test._objectUids:
+                  obj_link_name_to_index.append((uid, get_name_to_link(uid)))
+
               object_set = list(test._objectUids)
-              object_set.sort()
               object_to_ind = { k:n for (n,k) in enumerate(object_set)  }
               grasp_success_obj = np.zeros(len(object_set), dtype=np.bool)
               grasp_failure_obj = np.zeros(len(object_set)+1, dtype=np.int32)
@@ -575,8 +574,8 @@ if __name__ == '__main__':
                         config['trans_th'],
                         5000, # max number of candidate
                         -np.inf, # threshold of candidate
-                        1000,  # max number of grasp in NMS
-                        11,    # number of threads
+                        5000,  # max number of grasp in NMS
+                        20,    # number of threads
                         True  # use NMS
                       ), dtype=np.float32)
                   print('Generated0 %d grasps.'%len(pred_poses))
@@ -587,7 +586,7 @@ if __name__ == '__main__':
                           config['thickness'],
                           config['hand_height'],
                           config['thickness_side'],
-                          11 # num threads
+                          20 # num threads
                           )
                   end_ts = time.time()
                   print("Filter in %.2f seconds."%(end_ts-filter_ts))
@@ -664,9 +663,10 @@ if __name__ == '__main__':
                       for link_name, link_id in tm_link_name_to_index.items():
                           p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, link_id, -1, 0)
                           for obj_id, obj in obj_link_name_to_index:
-                              for obj_name, obj_link in obj.items():
-                                # temporary disable collision detection and move to ready pose
-                                p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 0)
+                              if obj_id in test._objectUids:
+                                  for obj_name, obj_link in obj.items():
+                                    # temporary disable collision detection and move to ready pose
+                                    p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 0)
 
                       # Ready to grasp pose
                       test._tm700.home()
@@ -686,8 +686,9 @@ if __name__ == '__main__':
                   for link_name in ['finger_r_link', 'finger_l_link']:
                       link_id = tm_link_name_to_index[link_name]
                       for obj_id, obj in obj_link_name_to_index:
-                          for obj_name, obj_link in obj.items():
-                            p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 1)
+                          if obj_id in test._objectUids:
+                              for obj_name, obj_link in obj.items():
+                                p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 1)
                   # Enable collision detection for gripper head, fingers
                   #p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['gripper_link'], -1, 1)
                   p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_r_link'], -1, 1)

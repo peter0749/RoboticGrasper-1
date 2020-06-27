@@ -39,7 +39,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
                maxSteps=11,
                dv=0.06,
                removeHeightHack=False,
-               blockRandom=0.25,
+               blockRandom=0.30,
                cameraRandom=0,
                width=64,
                height=64,
@@ -124,7 +124,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     """Environment reset called at the beginning of an episode.
     """
     # Set the camera settings.
-    look = [0.10, -0.20, 0.60]
+    look = [0.00, -0.15, 0.60]
     self._cam_pos = look
     distance = 0.1
     pitch = -45
@@ -186,9 +186,15 @@ class tm700_rgbd_gym(tm700_possensor_gym):
 
     # Randomize positions of each object urdf.
     objectUids = []
-    for urdf_name in urdfList:
-      xpos = 0.50 + self._blockRandom * random.random()
-      ypos = self._blockRandom * (random.random() - .5)
+    grid_size = 7
+    xgrid = np.linspace( 0.0, 1.0, grid_size) * self._blockRandom + 0.40
+    ygrid = np.linspace(-0.5, 0.5, grid_size) * self._blockRandom
+    xx, yy = np.meshgrid(xgrid, ygrid)
+    random_placement = np.random.choice(grid_size*grid_size, len(urdfList), replace=False)
+    inds_x, inds_y = np.unravel_index(random_placement, (grid_size, grid_size))
+    for urdf_name, ix, iy in zip(urdfList, inds_x, inds_y):
+      xpos = xx[ix, iy]
+      ypos = yy[ix, iy]
       orn = p.getQuaternionFromEuler([0, 0, np.random.uniform(-np.pi, np.pi)])
       uid = p.loadURDF(urdf_name, [xpos, ypos, 0.001], [orn[0], orn[1], orn[2], orn[3]])
       objectUids.append(uid)
@@ -488,13 +494,13 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      #p.connect(p.GUI)
+      p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter/YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -667,7 +673,8 @@ if __name__ == '__main__':
                           pose_backward, pose = tried_top1_grasp
                           test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
                       # Enable collision detection to test if a grasp is successful.
-                      for link_name, link_id in tm_link_name_to_index.items():
+                      for link_name in ['finger_r_link', 'finger_l_link']:
+                          link_id = tm_link_name_to_index[link_name]
                           for obj_id, obj in obj_link_name_to_index:
                               for obj_name, obj_link in obj.items():
                                 p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 1)

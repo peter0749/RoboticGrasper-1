@@ -569,7 +569,8 @@ if __name__ == '__main__':
                       print("No cluster found. Exit.")
                       break
                   # Select a suitable cluster to grasp
-                  for component_ind in cluster_indices:
+                  for cluster_i in np.random.permutation(len(cluster_indices)):
+                      component_ind = cluster_indices[cluster_i]
                       pc_npy = cloud_npy[component_ind,:]
                       #tmp_cl = pcl.PointCloud(pc_npy)
                       #pcl.save(tmp_cl, "cluster-%d.pcd"%cluster_cnt)

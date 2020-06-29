@@ -497,13 +497,13 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter0749/YCB_valset_urdf')
 
       success_n = 0
       max_tries = 3
@@ -539,28 +539,38 @@ if __name__ == '__main__':
                       break # Table is empty or error
 
                   ### Simple segmentation by clustering ###
-                  tmp_cl = pcl.PointCloud(pc_npy_no_table)
-                  vg = tmp_cl.make_voxel_grid_filter()
-                  del tmp_cl
-                  vg.set_leaf_size(0.003, 0.003, 0.003)
-                  cloud_filtered = vg.filter()
-                  nr_points = cloud_filtered.size
-                  tree = cloud_filtered.make_kdtree()
-                  ec = cloud_filtered.make_EuclideanClusterExtraction()
+                  cloud = pcl.PointCloud(pc_npy_no_table)
+                  tree = cloud.make_kdtree()
+                  norm = cloud.make_NormalEstimation()
+                  norm.set_SearchMethod(tree)
+                  norm.set_KSearch(20)
+                  normals = norm.compute()
+                  '''
+                  ec = cloud.make_EuclideanClusterExtraction()
                   ec.set_ClusterTolerance(0.01)
                   ec.set_MinClusterSize(100)
                   ec.set_MaxClusterSize(50000)
                   ec.set_SearchMethod(tree)
+                  '''
+                  ec = cloud.make_RegionGrowing()
+                  ec.set_SearchMethod(tree)
+                  ec.set_MinClusterSize(100)
+                  ec.set_MaxClusterSize(50000)
+                  ec.set_NumberOfNeighbours(30)
+                  ec.set_InputNormals(normals)
+                  ec.set_SmoothnessThreshold(np.radians(120.0)) # > 120 deg different object
+                  ec.set_CurvatureThreshold(1.0)
+
                   cluster_indices = ec.Extract()
-                  cloud_filtered_npy = np.array(cloud_filtered)
-                  del cloud_filtered, vg, tree, ec
+                  cloud_npy = np.array(cloud)
+                  del cloud, tree, ec, norm, normals
                   print('cluster_indices : ' + str(len(cluster_indices)))
                   if len(cluster_indices)==0:
                       print("No cluster found. Exit.")
                       break
                   # Select a suitable cluster to grasp
                   for component_ind in cluster_indices:
-                      pc_npy = cloud_filtered_npy[component_ind,:]
+                      pc_npy = cloud_npy[component_ind,:]
                       #tmp_cl = pcl.PointCloud(pc_npy)
                       #pcl.save(tmp_cl, "cluster-%d.pcd"%cluster_cnt)
                       #cluster_cnt += 1
@@ -601,7 +611,7 @@ if __name__ == '__main__':
                             config['trans_th'],
                             5000, # max number of candidate
                             -np.inf, # threshold of candidate
-                            5000,  # max number of grasp in NMS
+                            3000,  # max number of grasp in NMS
                             20,    # number of threads
                             True  # use NMS
                           ), dtype=np.float32)
@@ -638,8 +648,8 @@ if __name__ == '__main__':
                           outer_pts = crop_index(pc_no_arm, gripper_outer1, gripper_outer2)
                           inner_pts = crop_index(pc_no_arm[outer_pts], gripper_inner1, gripper_inner2)
                           gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-                          if not (gripper_l_t[2] > -0.003 and gripper_r_t[2] > -0.003 and \
-                                  gripper_l[2]   > -0.003 and gripper_r[2]   > -0.003 and \
+                          if not (gripper_l_t[2] > -0.001 and gripper_r_t[2] > -0.001 and \
+                                  gripper_l[2]   > -0.001 and gripper_r[2]   > -0.001 and \
                                   len(outer_pts) - len(inner_pts) < 30 and len(outer_pts) > 100):
                               continue
 
@@ -653,8 +663,8 @@ if __name__ == '__main__':
                                                                                                      0.0
                                                                                                      )
                           gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-                          if gripper_l_t[2] < -0.003 or gripper_r_t[2] < -0.003 or \
-                             gripper_l[2]   < -0.003 or gripper_r[2]   < -0.003: # ready pose will collide with table
+                          if gripper_l_t[2] < -0.001 or gripper_r_t[2] < -0.001 or \
+                             gripper_l[2]   < -0.001 or gripper_r[2]   < -0.001: # ready pose will collide with table
                               continue
 
                           new_pose = np.append(rotation, trans_backward[...,np.newaxis], axis=1)
@@ -702,7 +712,7 @@ if __name__ == '__main__':
 
                       # Ready to grasp pose
                       test._tm700.home()
-                      info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
+                      info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=3000, min_iteration=1)[-1]
                       info_backward = test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
                       if tried_top1_pose is None:
                           tried_top1_pose = (pose_backward, pose)
@@ -727,7 +737,7 @@ if __name__ == '__main__':
                   p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_l_link'], -1, 1)
                   # Deepen gripper hand
                   for d in np.linspace(0, 1, 60):
-                      info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=50, min_iteration=1)[-1]
+                      info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=100, min_iteration=1)[-1]
                   info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=500, min_iteration=1)[-1]
                   if not info['planning']:
                       print("Inverse Kinematics failed.")

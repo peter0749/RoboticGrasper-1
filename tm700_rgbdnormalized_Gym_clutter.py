@@ -610,7 +610,7 @@ if __name__ == '__main__':
                             config['thickness_side'],
                             config['rot_th'],
                             config['trans_th'],
-                            1000, # max number of candidate
+                            500, # max number of candidate
                             -np.inf, # threshold of candidate
                             300,  # max number of grasp in NMS
                             20,    # number of threads

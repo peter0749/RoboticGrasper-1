@@ -503,7 +503,7 @@ if __name__ == '__main__':
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       success_n = 0
       max_tries = 3
@@ -609,9 +609,9 @@ if __name__ == '__main__':
                             config['thickness_side'],
                             config['rot_th'],
                             config['trans_th'],
-                            5000, # max number of candidate
+                            1000, # max number of candidate
                             -np.inf, # threshold of candidate
-                            3000,  # max number of grasp in NMS
+                            300,  # max number of grasp in NMS
                             20,    # number of threads
                             True  # use NMS
                           ), dtype=np.float32)

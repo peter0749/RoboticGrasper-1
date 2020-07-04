@@ -18,6 +18,7 @@ from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
 #from mayavi import mlab
 import pcl
+import point_cloud_utils as pcu
 import multiprocessing as mp
 from gpg_sampler import GpgGraspSamplerPcl
 
@@ -711,13 +712,13 @@ if __name__ == '__main__':
   model.load_state_dict(torch.load(sys.argv[1]))
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       success_n = 0
       max_tries = 3

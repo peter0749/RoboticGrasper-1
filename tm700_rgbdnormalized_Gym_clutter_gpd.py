@@ -27,16 +27,16 @@ with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
     config['thickness'] = 0.003 # Force overwrite
 
-num_grasps = 100 # Still slower than GDN
-num_workers = 11
-max_num_samples = 50
+num_grasps = 1000 # Still slower than GDN
+num_workers = 15
+max_num_samples = 200
 
 project_size = 60 # For GPD
 projection_margin = 1 # For GPD
 voxel_point_num = 50 # For GPD
 project_chann = 12 # We only compare GPD with 12 channels
-max_ik_tries = 10
-minimal_points_send_to_point_net = 25 # need > 20 points to compute normal
+max_ik_tries = 5
+minimal_points_send_to_point_net = 100 # need > 20 points to compute normal
 ags = GpgGraspSamplerPcl(config)
 
 

@@ -25,7 +25,11 @@ from gpg_sampler import GpgGraspSamplerPcl
 
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
-    config['thickness'] = 0.003 # Force overwrite
+    # GPDs are easy to collide
+    shrink_width = 0.010
+    expand_thick = 0.005
+    config['gripper_width'] -= shrink_width
+    config['thickness'] += shrink_width*0.5 + expand_thick
 
 num_grasps = 1000 # Still slower than GDN
 num_workers = 15

@@ -48,7 +48,8 @@ def cal_grasp(points_, cam_pos_):
     surface_normal = surface_normal[:, 0:3]
     vector_p2cam = points_ - cam_pos_ #cam_pos_ - points_
     vector_p2cam = vector_p2cam / np.linalg.norm(vector_p2cam, axis=1).reshape(-1, 1)
-    tmp = np.dot(vector_p2cam, surface_normal.T).diagonal()
+    #tmp = np.dot(vector_p2cam, surface_normal.T).diagonal()
+    tmp = np.einsum('ij,ij->i', vector_p2cam, surface_normal)
     angel = np.arccos(np.clip(tmp, -1.0, 1.0))
     wrong_dir_norm = np.where(angel > np.pi * 0.5)[0]
     tmp = np.ones([len(angel), 3])

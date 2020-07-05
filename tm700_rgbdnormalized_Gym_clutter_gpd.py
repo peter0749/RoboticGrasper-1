@@ -32,7 +32,7 @@ num_grasps = 1000 # Still slower than GDN
 num_dy = 0 # for faster sampling
 range_dtheta = 30 # search -+ 30 degrees
 safety_dis_above_table = -0.003 # remove points on table
-sample_time_limit = 120.0 # prevent gpg sample forever
+sample_time_limit = 30.0 # prevent gpg sample forever
 num_workers = 15
 max_num_samples = 200 # Need more sample points than in single object grasping
 

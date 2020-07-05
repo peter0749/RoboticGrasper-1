@@ -24,23 +24,19 @@ from gpg_sampler import GpgGraspSamplerPcl
 
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
-    # GPDs are easy to collide
-    shrink_width = 0.010
-    expand_thick = 0.005
-    config['gripper_width'] -= shrink_width
-    config['thickness'] += shrink_width*0.5 + expand_thick
+    config['thickness'] = 0.003
 
 num_grasps = 1000 # Still slower than GDN
+num_dy = 0 # for faster sampling
+range_dtheta = 30 # search -+ 30 degrees
+safety_dis_above_table = -0.003 # remove points on table
+sample_time_limit = 120.0 # prevent gpg sample forever
 num_workers = 15
 max_num_samples = 200 # Same as PointnetGPD
-
-project_size = 60 # For GPD
-projection_margin = 1 # For GPD
-voxel_point_num = 50 # For GPD
-project_chann = 12 # We only compare GPD with 12 channels
-minimal_points_send_to_point_net = 100 # need > 20 points to compute normal
+minimal_points_send_to_point_net = 50 # need > 20 points to compute normal
 max_ik_tries = 5 # too many IK will take the simulation too long to finish...
 ags = GpgGraspSamplerPcl(config)
+
 
 def cal_grasp(points_, cam_pos_):
     points_ = points_.astype(np.float32)
@@ -67,7 +63,7 @@ def cal_grasp(points_, cam_pos_):
     #                                     max_num_samples=max_num_samples)
     def grasp_task(num_grasps_, ags_, queue_):
         ret = ags_.sample_grasps(point_cloud, points_for_sample, surface_normal, num_grasps_,
-                                 max_num_samples=max_num_samples)
+                                 max_num_samples=max_num_samples, num_dy=num_dy, time_limit=sample_time_limit, range_dtheta=range_dtheta, safety_dis_above_table=safety_dis_above_table)
         queue_.put(ret)
 
     queue = mp.Queue()
@@ -871,7 +867,7 @@ if __name__ == '__main__':
                                         p.setCollisionFilterPair(test._tm700.tm700Uid, obj_id, link_id, obj_link, 0)
                           # Ready to grasp pose
                           test._tm700.home()
-                          info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
+                          info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=3000, min_iteration=1)[-1]
                           info_backward = test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
                           if tried_top1_grasp is None:
                               tried_top1_grasp = (pose_backward, pose)

@@ -250,7 +250,7 @@ class GpgGraspSamplerPcl(GraspSampler):
     Code from https://github.com/lianghongzhuo/PointNetGPD
     """
 
-    def sample_grasps(self, point_cloud,points_for_sample, all_normal, num_grasps=20, max_num_samples=200, show_final_grasp=False, **kwargs):
+    def sample_grasps(self, point_cloud,points_for_sample, all_normal, num_grasps=20, max_num_samples=200, show_final_grasp=False, num_dy=2, range_dtheta=45, time_limit=np.inf, safety_dis_above_table=0.003, **kwargs):
         """
         Returns a list of candidate grasps for graspable object using uniform point pairs from the SDF
         Parameters
@@ -261,16 +261,17 @@ class GpgGraspSamplerPcl(GraspSampler):
             the number of grasps to generate
         show_final_grasp :
         max_num_samples :
+        time_limit : Time limit to perform sampling
         Returns
         -------
         :obj:`list` of :obj:`ParallelJawPtGrasp3D`
            list of generated grasps
         """
         params = {
-            'num_dy': 2,   # number
+            'num_dy': num_dy,   # number
             'dy_step': 0.005,
             'dtheta': 5,  # unit degree
-            'range_dtheta': 45,
+            'range_dtheta': range_dtheta,
             'r_ball': 0.01,
             'approach_step': 0.005,
             'step_back': 0.01, # step back 1cm to avoid collision in real grasp
@@ -290,6 +291,7 @@ class GpgGraspSamplerPcl(GraspSampler):
         hd = self.config['hand_height'] #self.gripper.hand_depth
 
         # get all grasps
+        start_ts = time.time()
         while True:
             # begin of modification 5: Gaussian over height
             # we can use the top part of the point clouds to generate more sample points
@@ -357,7 +359,11 @@ class GpgGraspSamplerPcl(GraspSampler):
             rotation_search_space = np.arange(-params['range_dtheta'],
                                         params['range_dtheta'] + 1,
                                         params['dtheta'])
-            np.random.shuffle(rotation_search_space)
+            r_abs = np.abs(rotation_search_space)
+            r_ind = np.argsort(r_abs)
+            r_abs = r_abs[r_ind]
+            rotation_search_space = rotation_search_space[r_ind]
+            rotation_search_space[0] = 0 # sample on origin first
             if params['num_dy']>0:
                 translation_search_space = np.arange(-params['num_dy'] * params['dy_step'],
                                             (params['num_dy'] + 1) * params['dy_step'],
@@ -424,7 +430,6 @@ class GpgGraspSamplerPcl(GraspSampler):
                                 min_finger_end_pos_ind = np.where(hand_points_[:, 2] == min_finger_end)[0][0]
 
                                 # Lots of tricks: This section remove the grippers collided with table
-                                safety_dis_above_table = 0.003
                                 if min_finger_end < safety_dis_above_table:
                                     min_finger_pos = hand_points_[min_finger_end_pos_ind]  # the lowest point in a gripper
                                     x = -min_finger_pos[2]*tmp_grasp_normal[0]/tmp_grasp_normal[2]+min_finger_pos[0]
@@ -455,4 +460,8 @@ class GpgGraspSamplerPcl(GraspSampler):
             logger.info("current amount of sampled surface %d / %d", sampled_surface_amount, max_num_samples)
             print("The grasps number got by modified GPG: %d / %d"%(len(processed_potential_grasp), num_grasps))
             print("current amount of sampled surface: %d / %d"%(sampled_surface_amount, max_num_samples))
-        return processed_potential_graspclass
+            iteration_ts = time.time()
+            if iteration_ts-start_ts>time_limit:
+                print("Time's up!")
+                break
+        return processed_potential_grasp

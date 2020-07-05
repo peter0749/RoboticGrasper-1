@@ -33,6 +33,12 @@ safety_dis_above_table = -0.003 # remove points on table
 sample_time_limit = 30.0 # prevent gpg sample forever
 num_workers = 15
 max_num_samples = 200 # Same as PointnetGPD
+
+project_size = 60 # For GPD
+projection_margin = 1 # For GPD
+voxel_point_num = 50 # For GPD
+project_chann = 12 # We only compare GPD with 12 channels
+
 minimal_points_send_to_point_net = 50 # need > 20 points to compute normal
 max_ik_tries = 5 # too many IK will take the simulation too long to finish...
 ags = GpgGraspSamplerPcl(config)

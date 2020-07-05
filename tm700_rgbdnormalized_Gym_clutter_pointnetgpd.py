@@ -25,16 +25,17 @@ from gpg_sampler import GpgGraspSamplerPcl
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
     # GPDs are easy to collide
-    shrink_width = 0.010
-    expand_thick = 0.005
-    config['gripper_width'] -= shrink_width
-    config['thickness'] += shrink_width*0.5 + expand_thick
+    config['thickness'] = 0.003
 
 num_grasps = 1000 # Still slower than GDN
+num_dy = 0 # for faster sampling
+range_dtheta = 30 # search -+ 30 degrees
+safety_dis_above_table = -0.003 # remove points on table
+sample_time_limit = 120.0 # prevent gpg sample forever
 num_workers = 15
-max_num_samples = 200
+max_num_samples = 200 # Need more sample points than in single object grasping
 max_ik_tries = 5
-minimal_points_send_to_point_net = 100 # need > 20 points to compute normal
+minimal_points_send_to_point_net = 25 # need > 20 points to compute normal
 input_points_num = 1000
 ags = GpgGraspSamplerPcl(config)
 
@@ -59,11 +60,9 @@ def cal_grasp(points_, cam_pos_):
     points_for_sample = points_
     if len(points_for_sample) == 0:
         return [], points_, surface_normal
-    #grasps_together_ = ags.sample_grasps(point_cloud, points_for_sample, surface_normal, num_grasps,
-    #                                     max_num_samples=max_num_samples)
     def grasp_task(num_grasps_, ags_, queue_):
         ret = ags_.sample_grasps(point_cloud, points_for_sample, surface_normal, num_grasps_,
-                                 max_num_samples=max_num_samples)
+                                 max_num_samples=max_num_samples, num_dy=num_dy, time_limit=sample_time_limit, range_dtheta=range_dtheta, safety_dis_above_table=safety_dis_above_table)
         queue_.put(ret)
 
     queue = mp.Queue()
@@ -602,13 +601,13 @@ if __name__ == '__main__':
   model.load_state_dict(torch.load(sys.argv[1]))
 
   with open(output_path, 'w') as result_fp:
-      p.connect(p.GUI)
+      #p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/home/peter/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
 
       success_n = 0
       max_tries = 3
@@ -768,7 +767,7 @@ if __name__ == '__main__':
 
                       # Ready to grasp pose
                       test._tm700.home()
-                      info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
+                      info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=3000, min_iteration=1)[-1]
                       info_backward = test.step_to_target_pose([pose_backward, -0.0],  ts=ts, max_iteration=2000, min_iteration=1)[-1]
                       if tried_top1_pose is None:
                           tried_top1_pose = (pose_backward, pose)
@@ -793,7 +792,7 @@ if __name__ == '__main__':
                   p.setCollisionFilterPair(test._tm700.tm700Uid, test.tableUid, tm_link_name_to_index['finger_l_link'], -1, 1)
                   # Deepen gripper hand
                   for d in np.linspace(0, 1, 60):
-                      info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=50, min_iteration=1)[-1]
+                      info = test.step_to_target_pose([pose*d+pose_backward*(1.-d), -0.0],  ts=ts, max_iteration=100, min_iteration=1)[-1]
                   info = test.step_to_target_pose([pose, -0.0],  ts=ts, max_iteration=500, min_iteration=1)[-1]
                   if not info['planning']:
                       print("Inverse Kinematics failed.")

@@ -464,7 +464,6 @@ def get_name_to_link(model_id):
 
 if __name__ == '__main__':
   import sys
-  import pcl
   import torch
   torch.backends.cudnn.benchmark = True
   torch.multiprocessing.set_start_method('forkserver')
@@ -477,7 +476,6 @@ if __name__ == '__main__':
   from nms import crop_index, generate_gripper_edge
   from scipy.spatial.transform import Rotation
 
-  os.environ['OMP_NUM_THREADS'] = '8'
   initEigen(0)
 
   output_path = sys.argv[2]
@@ -494,13 +492,12 @@ if __name__ == '__main__':
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
-      #p.connect(p.GUI)
+      p.connect(p.GUI)
       #p.setAdditionalSearchPath(datapath)
       start_obj_id = 3
       input_points = 2048
       ts = None #1/240.
-      #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='../YCB_valset_urdf')
 
       complete_n = 0
       max_tries = 3

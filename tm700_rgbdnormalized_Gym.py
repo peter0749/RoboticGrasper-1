@@ -464,7 +464,7 @@ def get_name_to_link(model_id):
 
 if __name__ == '__main__':
   import sys
-  import pcl
+  #import pcl
   import torch
   torch.backends.cudnn.benchmark = True
   torch.multiprocessing.set_start_method('forkserver')
@@ -500,7 +500,7 @@ if __name__ == '__main__':
       input_points = 2048
       ts = None #1/240.
       #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='/tmp2/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot='./YCB_valset_urdf')
 
       test.reset()
       tm_link_name_to_index = get_name_to_link(test._tm700.tm700Uid)
@@ -646,6 +646,11 @@ if __name__ == '__main__':
               if len(pred_poses)==0:
                   print("No suitable grasp found.")
                   no_solution_fail += 1
+                  if not test._current_objList[0] in obj_success_rate:
+                      obj_success_rate[test._current_objList[0]] = (0, 0)
+                  obj_iter_n = obj_success_rate[test._current_objList[0]][1] + 1
+                  obj_success_n = obj_success_rate[test._current_objList[0]][0]
+                  obj_success_rate[test._current_objList[0]] = (obj_success_n, obj_iter_n)
               else:
                   best_grasp = pred_poses[0] # (3, 4)
                   rotation = best_grasp[:3,:3]

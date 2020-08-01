@@ -545,13 +545,13 @@ if __name__ == '__main__':
                       config['thickness_side'],
                       config['rot_th'],
                       config['trans_th'],
-                      n_output=2000, threshold=-np.inf, nms=True)
+                      n_output=1500, threshold=-np.inf, nms=False) # Few grasps return by S4G. I'm turning of NMS
               filter_ts = time.time()
               print("Decode in %.2f seconds."%(filter_ts-inf_ts))
               '''
               pred_poses = filter_out_invalid_grasp_fast(config, pc_no_arm, pred_poses, n_collision=1)
               '''
-              pred_poses = sanity_check(pc_no_arm, [x[1] for x in pred_poses], 2,
+              pred_poses = sanity_check(pc_no_arm, [x[1] for x in pred_poses], 10,
                       config['gripper_width'],
                       config['thickness'],
                       config['hand_height'],
@@ -627,6 +627,11 @@ if __name__ == '__main__':
               if len(pred_poses)==0:
                   print("No suitable grasp found.")
                   no_solution_fail += 1
+                  if not test._current_objList[0] in obj_success_rate:
+                      obj_success_rate[test._current_objList[0]] = (0, 0)
+                  obj_iter_n = obj_success_rate[test._current_objList[0]][1] + 1
+                  obj_success_n = obj_success_rate[test._current_objList[0]][0]
+                  obj_success_rate[test._current_objList[0]] = (obj_success_n, obj_iter_n)
               else:
                   best_grasp = pred_poses[0] # (3, 4)
                   rotation = best_grasp[:3,:3]

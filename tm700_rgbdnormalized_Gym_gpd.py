@@ -810,6 +810,11 @@ if __name__ == '__main__':
               if len(pred_poses)==0:
                   print("No suitable grasp found.")
                   no_solution_fail += 1
+                  if not test._current_objList[0] in obj_success_rate:
+                      obj_success_rate[test._current_objList[0]] = (0, 0)
+                  obj_iter_n = obj_success_rate[test._current_objList[0]][1] + 1
+                  obj_success_n = obj_success_rate[test._current_objList[0]][0]
+                  obj_success_rate[test._current_objList[0]] = (obj_success_n, obj_iter_n)
               else:
                   best_grasp = pred_poses[0][1] # (3, 4)
                   print("Confidence: %.4f"%pred_poses[0][0])

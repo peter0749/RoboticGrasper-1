@@ -19,7 +19,7 @@ from bullet.tm700_possensor_Gym import tm700_possensor_gym
 #from mayavi import mlab
 
 
-with open('./gripper_config.json', 'r') as fp:
+with open('./s4g_config.json', 'r') as fp:
     config = json.load(fp)
     # GPDs are easy to collide
     shrink_width = 0.010
@@ -468,11 +468,11 @@ if __name__ == '__main__':
   import torch
   torch.backends.cudnn.benchmark = True
   torch.multiprocessing.set_start_method('forkserver')
-  from gdn.representation.euler import *
+  from gdn.representation.s4g_focal import *
   #from gdn.utils import *
-  from gdn.detector.edgeconv.backbone import EdgeDet
+  from gdn.detector.pointnet2_s4g.backbone import Pointnet2MSG
   #from nms import nms as gripper_nms
-  from nms import decode_euler_feature
+  #from nms import decode_euler_feature
   from nms import initEigen, sanity_check
   from nms import crop_index, generate_gripper_edge
   from scipy.spatial.transform import Rotation
@@ -486,11 +486,11 @@ if __name__ == '__main__':
 
   gripper_length = config['hand_height']
   deepen_hand = gripper_length + 0.01
-  model = EdgeDet(config, activation_layer=EulerActivation())
+  model = Pointnet2MSG(config, activation_layer=S4GActivation())
   model = model.cuda()
   model = model.eval()
   model.load_state_dict(torch.load(sys.argv[1])['base_model'])
-  representation = EulerRepresentation(config)
+  representation = S4GRepresentation(config)
   subsampling_util = val_collate_fn_setup(config)
 
   with open(output_path, 'w') as result_fp:
@@ -533,49 +533,30 @@ if __name__ == '__main__':
               pc_npy -= trans_to_frame
 
               start_ts = time.time()
-              pc_batch, indices, reverse_lookup_index, _ = subsampling_util([(pc_npy,None),])
+              pc_batch, _ = subsampling_util([(pc_npy,None),])
               ss_ts = time.time()
               print("Subsampling in %.2f seconds."%(ss_ts-start_ts))
-              pred = model(pc_batch.cuda(), [pt_idx.cuda() for pt_idx in indices]).cpu().numpy()
+              pred = model(pc_batch.cuda()).cpu().numpy()
               inf_ts = time.time()
               print("Inference in %.2f seconds."%(inf_ts-ss_ts))
-              '''
-              pred_poses = retrive_from_feature_volume_fast(pc_npy[reverse_lookup_index[0]]+trans_to_frame[np.newaxis], pred[0], *pred[0].shape[:-1],
+              pred_poses = retrive_from_feature_volume(pc_npy+trans_to_frame[np.newaxis], pred[0], pred[0].shape[0],
                       config['hand_height'],
                       config['gripper_width'],
                       config['thickness_side'],
                       config['rot_th'],
                       config['trans_th'],
-                      n_output=2000, threshold=-np.inf)
-              pred_poses = np.asarray(gripper_nms(pred_poses, config['rot_th'], config['trans_th'], 300, 8), dtype=np.float32)
-              '''
-              feat_ts = time.time()
-              pred_poses = np.asarray(decode_euler_feature(
-                    pc_npy[reverse_lookup_index[0]]+trans_to_frame[np.newaxis],
-                    pred[0].reshape(1,-1),
-                    *pred[0].shape[:-1],
-                    config['hand_height'],
-                    config['gripper_width'],
-                    config['thickness_side'],
-                    config['rot_th'],
-                    config['trans_th'],
-                    3000, # max number of candidate
-                    -np.inf, # threshold of candidate
-                    500,  # max number of grasp in NMS
-                    20,    # number of threads
-                    True  # use NMS
-                  ), dtype=np.float32)
+                      n_output=1500, threshold=-np.inf, nms=False) # Few grasps return by S4G. I'm turning of NMS
               filter_ts = time.time()
-              print("Decode in %.2f seconds."%(filter_ts-feat_ts))
+              print("Decode in %.2f seconds."%(filter_ts-inf_ts))
               '''
               pred_poses = filter_out_invalid_grasp_fast(config, pc_no_arm, pred_poses, n_collision=1)
               '''
-              pred_poses = sanity_check(pc_no_arm, pred_poses, 2,
+              pred_poses = sanity_check(pc_no_arm, [x[1] for x in pred_poses], 10,
                       config['gripper_width'],
                       config['thickness'],
                       config['hand_height'],
                       config['thickness_side'],
-                      20 # num threads
+                      8 # num threads
                       )
               end_ts = time.time()
               print("Filter in %.2f seconds."%(end_ts-filter_ts))

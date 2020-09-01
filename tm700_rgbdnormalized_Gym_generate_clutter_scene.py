@@ -292,7 +292,8 @@ def get_name_to_link(model_id):
 if __name__ == '__main__':
   import sys
   #from mayavi import mlab
-  import pcl
+  #import pcl
+  import open3d as o3d
 
   output_prefix = sys.argv[1]
   start_ite = int(sys.argv[2])
@@ -303,7 +304,7 @@ if __name__ == '__main__':
 
   #p.connect(p.GUI)
   ts = None #1/240.
-  test = tm700_rgbd_gym(width=300, height=300, numObjects=10, objRoot='/home/peter0749/YCB_trainset_urdf')
+  test = tm700_rgbd_gym(width=300, height=300, numObjects=10, objRoot='./YCB_trainset_urdf')
 
   start_ts = time.time()
   elapsed_ite = 0
@@ -321,6 +322,7 @@ if __name__ == '__main__':
               pcs = np.append(pcs, point_cloud.reshape(-1, 3)[seg>=1].astype(np.float32), axis=0)
           test.rotate_camera(yaw=45.0)
 
+      '''
       pc_subset = pcl.PointCloud(pcs)
       vx = pc_subset.make_voxel_grid_filter()
       vx.set_leaf_size(0.003, 0.003, 0.003)
@@ -328,6 +330,19 @@ if __name__ == '__main__':
       pc_subset = pc_subset[np.abs(pc_subset[:,0]-(test._blockRandom*0.5+0.40))<0.30]
       pc_subset = pc_subset[np.abs(pc_subset[:,1])<0.30]
       pc_pcd    = pcl.PointCloud(pc_subset)
+      '''
+      pcd = o3d.geometry.PointCloud()
+      pcd.points = o3d.utility.Vector3dVector(pcs)
+      downpcd = pcd.voxel_down_sample(voxel_size=0.003)
+      del pcd
+      pc_subset = np.array(downpcd.points, dtype=np.float32)
+      del downpcd
+
+      pc_subset = pc_subset[np.abs(pc_subset[:,0]-(test._blockRandom*0.5+0.40))<0.30]
+      pc_subset = pc_subset[np.abs(pc_subset[:,1])<0.30]
+
+      pcd = o3d.geometry.PointCloud()
+      pcd.points = o3d.utility.Vector3dVector(pc_subset)
 
       '''
       mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.01)
@@ -340,7 +355,8 @@ if __name__ == '__main__':
       output_npy = output_prefix + '/scene-%d.npy'%(ite+1)
 
       np.save(output_npy, pc_subset, allow_pickle=True, fix_imports=True)
-      pcl.save(pc_pcd, output_pcd, format='pcd', binary=True)
+      #pcl.save(pc_pcd, output_pcd, format='pcd', binary=True)
+      o3d.io.write_point_cloud(output_pcd, pcd, write_ascii=False, compressed=True)
       #pcl.save(pc_pcd, output_ply, format='ply')
       save_ts = time.time()
       elapsed_ite += 1

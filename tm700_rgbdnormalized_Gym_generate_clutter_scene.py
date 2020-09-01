@@ -157,7 +157,8 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     p.stepSimulation()
 
     # Choose the objects in the bin.
-    ind = np.random.choice(len(self._urdfList), self._numObjects, replace=False)
+    numObj = np.random.randint(1, self._numObjects+1)
+    ind = np.random.choice(len(self._urdfList), numObj, replace=False)
     self._current_urdfList = [self._urdfList[i] for i in ind]
     self._current_objList  = [self._objNameList[i] for i in ind]
     self._objectUids = self._randomly_place_objects(self._current_urdfList)
@@ -190,7 +191,7 @@ class tm700_rgbd_gym(tm700_possensor_gym):
       objectUids.append(uid)
       # Let each object fall to the tray individual, to prevent object
       # intersection.
-      for _ in range(1000):
+      for _ in range(500):
         p.stepSimulation()
     return objectUids
 

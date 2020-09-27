@@ -17,7 +17,6 @@ from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
-#from mayavi import mlab
 import pcl
 import point_cloud_utils as pcu
 import multiprocessing as mp
@@ -480,10 +479,6 @@ if __name__ == '__main__':
   from nms import crop_index, generate_gripper_edge
   from scipy.spatial.transform import Rotation
 
-  x_crop = ( 0.35, 0.75)
-  y_crop = (-0.35, 0.35)
-  z_crop = (-0.03, 0.60)
-
   output_path = sys.argv[2]
   assert output_path.endswith(('.txt', '.out', '.log'))
   total_n = int(sys.argv[3])
@@ -539,9 +534,13 @@ if __name__ == '__main__':
                   del pc_npy_no_table
 
                   pc_npy = np.copy(pc_no_arm)
-                  pc_npy = pc_npy[np.logical_and(pc_npy[:,0]>x_crop[0],pc_npy[:,0]<x_crop[1]),:]
-                  pc_npy = pc_npy[np.logical_and(pc_npy[:,1]>y_crop[0],pc_npy[:,1]<y_crop[1]),:]
-                  pc_npy = pc_npy[np.logical_and(pc_npy[:,2]>z_crop[0],pc_npy[:,2]<z_crop[1]),:]
+                  on_table = pc_npy[pc_npy[:,2]>0.005,:]
+                  boundary_min = np.min(on_table, axis=0, keepdims=True) - 0.03
+                  boundary_max = np.max(on_table, axis=0, keepdims=True) + 0.03
+                  del on_table
+                  pc_npy = pc_npy[np.all(pc_npy[:,:2]>boundary_min[:,:2], axis=1),:]
+                  pc_npy = pc_npy[np.all(pc_npy[:,:2]<boundary_max[:,:2], axis=1),:]
+                  del boundary_min, boundary_max
 
                   pc_npy_max = np.max(pc_npy, axis=0)
                   pc_npy_min = np.min(pc_npy, axis=0)
@@ -552,6 +551,7 @@ if __name__ == '__main__':
                   sor = pc.make_voxel_grid_filter()
                   sor.set_leaf_size(0.003, 0.003, 0.003)
                   cloud_filtered = sor.filter()
+                  #pcl.save(cloud_filtered, "pc.pcd")
                   pc_npy = np.array(cloud_filtered, dtype=np.float32)
                   del pc, sor, cloud_filtered, pc_no_arm
                   gc.collect()
@@ -719,24 +719,6 @@ if __name__ == '__main__':
                       this_grasp_success = True
                   else:
                       print("Grasp failed!")
-                      if False:
-                          pc_subset = np.copy(pc_npy)
-                          if len(pc_subset)>5000:
-                              pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
-                          mlab.clf()
-                          mlab.points3d(pc_subset[:,0], pc_subset[:,1], pc_subset[:,2], scale_factor=0.004, mode='sphere', color=(1.0,1.0,0.0), opacity=1.0)
-                          for n, pose_ in enumerate(pred_poses):
-                              pose = np.copy(pose_)
-                              pose[:,3] += pose[:,0] * deepen_hand
-                              gripper_inner_edge, gripper_outer1, gripper_outer2 = generate_gripper_edge(config['gripper_width'], config['hand_height'], pose, config['thickness_side'], 0.0)
-                              gripper_l, gripper_r, gripper_l_t, gripper_r_t = gripper_inner_edge
-
-                              mlab.plot3d([gripper_l[0], gripper_r[0]], [gripper_l[1], gripper_r[1]], [gripper_l[2], gripper_r[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)
-                              mlab.plot3d([gripper_l[0], gripper_l_t[0]], [gripper_l[1], gripper_l_t[1]], [gripper_l[2], gripper_l_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)
-                              mlab.plot3d([gripper_r[0], gripper_r_t[0]], [gripper_r[1], gripper_r_t[1]], [gripper_r[2], gripper_r_t[2]], tube_radius=config['thickness']/4., color=(0,0,1) if n>0 else (1,0,0), opacity=0.5)
-                          mlab.show()
-                          input()
-
                   if this_grasp_success:
                       for uid in uids:
                           test._objectUids.remove(uid)

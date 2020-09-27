@@ -26,11 +26,7 @@ import multiprocessing as mp
 with open('./gdn_scene.json', 'r') as fp:
     config = json.load(fp)
 
-num_grasps = 1000 # Still slower than GDN
-safety_dis_above_table = -0.003 # remove points on table
-num_workers = 15
-max_ik_tries = 5
-
+max_ik_tries = 10
 
 class tm700_rgbd_gym(tm700_possensor_gym):
   """Class for tm700 environment with diverse objects.
@@ -195,9 +191,6 @@ class tm700_rgbd_gym(tm700_possensor_gym):
     # Randomize positions of each object urdf.
     objectUids = []
     grid_size = 7
-    # x: (0.40, 0.70)
-    # y: (-0.30, 0.30)
-    # z: (-0.03, 0.60)
     xgrid = np.linspace( 0.0, 1.0, grid_size) * self._blockRandom + 0.40
     ygrid = np.linspace(-0.5, 0.5, grid_size) * self._blockRandom
     xx, yy = np.meshgrid(xgrid, ygrid)
@@ -487,8 +480,8 @@ if __name__ == '__main__':
   from nms import crop_index, generate_gripper_edge
   from scipy.spatial.transform import Rotation
 
-  x_crop = ( 0.40, 0.70)
-  y_crop = (-0.30, 0.30)
+  x_crop = ( 0.35, 0.75)
+  y_crop = (-0.35, 0.35)
   z_crop = (-0.03, 0.60)
 
   output_path = sys.argv[2]
@@ -496,7 +489,7 @@ if __name__ == '__main__':
   total_n = int(sys.argv[3])
 
   gripper_length = config['hand_height']
-  deepen_hand = gripper_length + 0.01
+  deepen_hand = gripper_length + 0.02
   model = Pointnet2MSG(config, activation_layer=EulerActivation())
   model = model.cuda()
   model = model.eval()
@@ -513,7 +506,6 @@ if __name__ == '__main__':
 
       success_n = 0
       max_tries = 3
-      #cluster_cnt = 0
       with torch.no_grad():
           for ite in range(total_n):
               test.reset()
@@ -728,7 +720,7 @@ if __name__ == '__main__':
                   else:
                       print("Grasp failed!")
                       if False:
-                          pc_subset = np.copy(pc_no_arm)
+                          pc_subset = np.copy(pc_npy)
                           if len(pc_subset)>5000:
                               pc_subset = pc_subset[np.random.choice(len(pc_subset), 5000, replace=False)]
                           mlab.clf()

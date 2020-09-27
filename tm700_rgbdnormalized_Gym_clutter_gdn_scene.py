@@ -537,10 +537,15 @@ if __name__ == '__main__':
                   on_table = pc_npy[pc_npy[:,2]>0.005,:]
                   boundary_min = np.min(on_table, axis=0, keepdims=True) - 0.03
                   boundary_max = np.max(on_table, axis=0, keepdims=True) + 0.03
+                  boundary_middle = (boundary_min + boundary_max) / 2.0
+                  for i in range(2):
+                      if boundary_max[0,i] - boundary_min[0,i] < 0.30:
+                          boundary_min[0,i] = boundary_middle[0,i] - 0.15
+                          boundary_max[0,i] = boundary_middle[0,i] + 0.15
                   del on_table
                   pc_npy = pc_npy[np.all(pc_npy[:,:2]>boundary_min[:,:2], axis=1),:]
                   pc_npy = pc_npy[np.all(pc_npy[:,:2]<boundary_max[:,:2], axis=1),:]
-                  del boundary_min, boundary_max
+                  del boundary_min, boundary_max, boundary_middle
 
                   pc_npy_max = np.max(pc_npy, axis=0)
                   pc_npy_min = np.min(pc_npy, axis=0)
@@ -579,9 +584,9 @@ if __name__ == '__main__':
                             config['thickness_side'],
                             config['rot_th'],
                             config['trans_th'],
-                            10000, # max number of candidate
+                            3000, # max number of candidate
                             -np.inf, # threshold of candidate
-                            10000,  # max number of grasp in NMS
+                            3000,  # max number of grasp in NMS
                             20,    # number of threads
                             True  # use NMS
                           ), dtype=np.float32)
@@ -600,7 +605,9 @@ if __name__ == '__main__':
                       trans    = pose[:3, 3]
                       approach = rotation[:3,0]
                       # if there is no suitable IK solution can be found. found next
-                      if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(85):
+                      if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(80):
+                          continue
+                      if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(90):
                           continue
                       tmp_pose = np.append(rotation, trans[...,np.newaxis], axis=1)
 

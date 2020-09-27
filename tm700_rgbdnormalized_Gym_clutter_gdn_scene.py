@@ -484,7 +484,7 @@ if __name__ == '__main__':
   total_n = int(sys.argv[3])
 
   gripper_length = config['hand_height']
-  deepen_hand = gripper_length + 0.02
+  deepen_hand = gripper_length + 0.01
   model = Pointnet2MSG(config, activation_layer=EulerActivation())
   model = model.cuda()
   model = model.eval()
@@ -584,11 +584,11 @@ if __name__ == '__main__':
                             config['thickness_side'],
                             config['rot_th'],
                             config['trans_th'],
-                            3000, # max number of candidate
+                            10000, # max number of candidate
                             -np.inf, # threshold of candidate
-                            3000,  # max number of grasp in NMS
+                            10000,  # max number of grasp in NMS
                             20,    # number of threads
-                            True  # use NMS
+                            False  # use NMS
                           ), dtype=np.float32)
 
                   pred_poses = sanity_check(pc_npy, pred_poses, 10,
@@ -605,7 +605,7 @@ if __name__ == '__main__':
                       trans    = pose[:3, 3]
                       approach = rotation[:3,0]
                       # if there is no suitable IK solution can be found. found next
-                      if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(65):
+                      if np.arccos(np.dot(approach.reshape(1,3), np.array([1, 0,  0]).reshape(3,1))) > np.radians(70):
                           continue
                       if np.arccos(np.dot(approach.reshape(1,3), np.array([0, 0, -1]).reshape(3,1))) > np.radians(90):
                           continue

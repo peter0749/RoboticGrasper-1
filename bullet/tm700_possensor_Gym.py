@@ -207,7 +207,10 @@ class tm700_possensor_gym(gym.Env):
       if done:
         break
       target_t = np.asarray(state[0])
-      target_r = sciRotation.from_quat(np.asarray(state[1])).as_matrix()
+      try:
+        target_r = sciRotation.from_quat(np.asarray(state[1])).as_dcm()
+      except AttributeError:
+        target_r = sciRotation.from_quat(np.asarray(state[1])).as_matrix()
       trans_d  = np.linalg.norm(target_t-action[0][:3,3], ord=2)
       rot_d    = np.degrees(np.arcsin(np.linalg.norm(np.eye(3) - np.dot(action[0][:3,:3], target_r.T), ord=None) / (2*np.sqrt(2))))
       if trans_d<trans_eps and rot_d<rot_eps and ite>=min_iteration:

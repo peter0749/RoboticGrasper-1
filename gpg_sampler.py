@@ -378,7 +378,10 @@ class GpgGraspSamplerPcl(GraspSampler):
             num_approaches = int(approach_dist / params['approach_step'])
 
             for dtheta, dy in rs_ts:
-                rotation = sciRotation.from_quat([minor_pc[0], minor_pc[1], minor_pc[2], dtheta / 180 * np.pi]).as_matrix()
+                try:
+                    rotation = sciRotation.from_quat([minor_pc[0], minor_pc[1], minor_pc[2], dtheta / 180 * np.pi]).as_dcm()
+                except AttributeError:
+                    rotation = sciRotation.from_quat([minor_pc[0], minor_pc[1], minor_pc[2], dtheta / 180 * np.pi]).as_matrix()
                 # compute centers and axes
                 tmp_major_pc = np.dot(rotation, major_pc) # Y
                 tmp_grasp_normal = np.dot(rotation, new_normal) # X

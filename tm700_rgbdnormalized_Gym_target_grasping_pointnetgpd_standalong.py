@@ -25,15 +25,15 @@ with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
     config['thickness'] = 0.003
 
-num_grasps = 500 # Still slower than GDN
+num_grasps = 3000 # Still slower than GDN
 num_dy = 0 # for faster sampling
 range_dtheta = 30 # search -+ 30 degrees
 safety_dis_above_table = -0.003 # remove points on table
 sample_time_limit = 30.0 # prevent gpg sample forever
-num_workers = 15
-max_num_samples = 200 # Same as PointnetGPD
+num_workers = 4
+max_num_samples = 500 # Same as PointnetGPD
 minimal_points_send_to_point_net = 25 # need > 20 points to compute normal
-max_ik_tries = 5 # too many IK will take the simulation too long to finish...
+max_ik_tries = 3 # too many IK will take the simulation too long to finish...
 input_points_num = 1000
 ags = GpgGraspSampler(config)
 

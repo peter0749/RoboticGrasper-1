@@ -121,7 +121,10 @@ class tm700:
   def applyActionIK(self, motorCommands):
 
     pos = motorCommands[0][:3,3]
-    orn = sciRotation.from_matrix(motorCommands[0][:3,:3]).as_quat()
+    try:
+        orn = sciRotation.from_dcm(motorCommands[0][:3,:3]).as_quat()
+    except AttributeError:
+        orn = sciRotation.from_matrix(motorCommands[0][:3,:3]).as_quat()
     fingerAngle = motorCommands[1]
     jointPoses = p.calculateInverseKinematics(self.tm700Uid, self.tmGripperBottomCenterIndex, pos,
                                               orn, self.ll, self.ul, self.jr, self.rp)

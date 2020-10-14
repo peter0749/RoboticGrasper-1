@@ -16,16 +16,16 @@ from pkg_resources import parse_version
 import gym
 from bullet.tm700 import tm700
 from bullet.tm700_possensor_Gym import tm700_possensor_gym
-import pcl
 import multiprocessing as mp
-from gpg_sampler import GpgGraspSamplerPcl
+import point_cloud_utils as pcu
+from gpg_sampler_nopcl import GpgGraspSampler
 #from mayavi import mlab
 
 with open('./gripper_config.json', 'r') as fp:
     config = json.load(fp)
     config['thickness'] = 0.003
 
-num_grasps = 1000 # Still slower than GDN
+num_grasps = 500 # Still slower than GDN
 num_dy = 0 # for faster sampling
 range_dtheta = 30 # search -+ 30 degrees
 safety_dis_above_table = -0.003 # remove points on table
@@ -35,17 +35,14 @@ max_num_samples = 200 # Same as PointnetGPD
 minimal_points_send_to_point_net = 25 # need > 20 points to compute normal
 max_ik_tries = 5 # too many IK will take the simulation too long to finish...
 input_points_num = 1000
-ags = GpgGraspSamplerPcl(config)
+ags = GpgGraspSampler(config)
 
 
 def cal_grasp(points_, cam_pos_):
     points_ = points_.astype(np.float32)
     # In ideal environment we don't to denoise the point cloud
-    point_cloud = pcl.PointCloud(points_)
-    norm = point_cloud.make_NormalEstimation()
-    norm.set_KSearch(20)  # critical parameter when calculating the norms
-    normals = norm.compute()
-    surface_normal = normals.to_array()
+    point_cloud = points_
+    surface_normal = pcu.estimate_normals(point_cloud, k=20)
     surface_normal = surface_normal[:, 0:3]
     vector_p2cam = points_ - cam_pos_ #cam_pos_ - points_
     vector_p2cam = vector_p2cam / np.linalg.norm(vector_p2cam, axis=1).reshape(-1, 1)
@@ -59,8 +56,6 @@ def cal_grasp(points_, cam_pos_):
     points_for_sample = points_
     if len(points_for_sample) == 0:
         return [], points_, surface_normal
-    #grasps_together_ = ags.sample_grasps(point_cloud, points_for_sample, surface_normal, num_grasps,
-    #                                     max_num_samples=max_num_samples)
     def grasp_task(num_grasps_, ags_, queue_):
         ret = ags_.sample_grasps(point_cloud, points_for_sample, surface_normal, num_grasps_,
                                  max_num_samples=max_num_samples, num_dy=num_dy, time_limit=sample_time_limit, range_dtheta=range_dtheta, safety_dis_above_table=safety_dis_above_table)
@@ -586,17 +581,16 @@ if __name__ == '__main__':
   os.environ['OMP_NUM_THREADS'] = '8'
   initEigen(0)
 
-  output_path = sys.argv[2]
+  output_path = sys.argv[3]
   assert output_path.endswith(('.txt', '.out', '.log'))
-  total_n = int(sys.argv[3])
+  total_n = int(sys.argv[4])
   cls_k = 2
 
   gripper_length = config['hand_height']
   deepen_hand = gripper_length + 0.01
   model = PointNetCls(num_points=input_points_num, input_chann=3, k=cls_k, return_features=False)
-  model = model.cuda()
   model = model.eval()
-  model.load_state_dict(torch.load(sys.argv[1]))
+  model.load_state_dict(torch.load(sys.argv[1], map_location='cpu'))
 
   with open(output_path, 'w') as result_fp:
       #p.connect(p.GUI)
@@ -604,8 +598,7 @@ if __name__ == '__main__':
       start_obj_id = 3
       input_points = 2048
       ts = None #1/240.
-      #test = tm700_rgbd_gym(width=480, height=480, numObjects=1, objRoot='//peter0749/Simple_urdf')
-      test = tm700_rgbd_gym(width=720, height=720, numObjects=7, objRoot='/tmp2/peter0749/YCB_valset_urdf')
+      test = tm700_rgbd_gym(width=720, height=720, numObjects=1, objRoot=sys.argv[2])
 
       complete_n = 0
       max_tries = 3
@@ -663,7 +656,7 @@ if __name__ == '__main__':
                                   additional_points = cropped_points[np.random.choice(len(cropped_points),input_points_num-len(cropped_points), replace=True)]
                                   points_modify = np.append(cropped_points, additional_points, axis=0).astype(np.float32)
                               try:
-                                  out = model(torch.from_numpy(points_modify.T).unsqueeze(0).cuda())
+                                  out = model(torch.from_numpy(points_modify.T).unsqueeze(0))
                                   if isinstance(out, tuple):
                                       out = out[0]
                                   score = float(out[0,-1].cpu()) # (#batch,)
